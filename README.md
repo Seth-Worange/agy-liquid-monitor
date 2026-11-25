@@ -15,7 +15,7 @@ npm run hud:install
 
 安装会校验并备份原始 `app.asar`，然后更换归档。客户端更新后可重新运行兼容检查与安装。完全退出客户端后，执行 `npm run hud:restore` 可按 SHA-256 校验还原原版归档。
 
-如果客户端不支持状态栏挂载，仍可通过 `agy plugin install .` 安装全页 MCP 看板，从左栏 **Plugins → Liquid Monitor** 打开。该入口需要 Antigravity App 2.34.0+。用 `npm run preview` 可以在浏览器里试用带演示数据的状态栏。
+可另用 `agy plugin install .` 注册 MCP 看板。打开任一会话，在右上角打开侧栏，再从右侧栏的 **+ → Plugins → Liquid Monitor** 打开主页面。左栏 **Plugins → Liquid Monitor** 也可打开全页。MCP 看板需要 Antigravity App 2.34.0+。用 `npm run preview` 可以在浏览器里试用带演示数据的状态栏。
 
 ## 能看到什么
 

@@ -3,6 +3,16 @@
   font-size: 12px;
   line-height: 1.4;
   -webkit-app-region: no-drag;
+  --hud-glass: rgba(26, 27, 31, .57);
+  --hud-rim: rgba(255, 255, 255, .19);
+  --hud-highlight: rgba(255, 255, 255, .21);
+  --hud-floor: rgba(0, 0, 0, .23);
+}
+:host([data-theme="light"]) {
+  --hud-glass: rgba(252, 253, 255, .58);
+  --hud-rim: rgba(255, 255, 255, .69);
+  --hud-highlight: rgba(255, 255, 255, .86);
+  --hud-floor: rgba(20, 20, 30, .07);
 }
 :host([data-hud-bar]) { display: inline-flex; flex: none; }
 :host([data-hud-bar="top"]) { margin-inline: 8px 4px; min-width: 0; }
@@ -19,11 +29,11 @@
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--hud-rim);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--glass) 62%, transparent);
-  box-shadow: inset 0 1px 0 var(--shine);
-  backdrop-filter: blur(14px) saturate(115%);
+  background: var(--hud-glass);
+  box-shadow: inset 0 1px 0 var(--hud-highlight), inset 0 -1px 1px var(--hud-floor);
+  backdrop-filter: blur(16px) saturate(185%);
 }
 .status-button {
   display: inline-flex;
@@ -71,12 +81,13 @@
   max-height: calc(100vh - 16px);
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--hud-rim);
   border-radius: 16px;
-  background: var(--glass);
+  background: var(--hud-glass);
   color: var(--ink);
-  box-shadow: inset 0 1px 0 var(--shine), 0 10px 34px var(--shadow);
-  backdrop-filter: blur(28px) saturate(135%);
+  box-shadow: inset 0 1px 0 var(--hud-highlight), inset 0 -1px 1px var(--hud-floor),
+    0 0 0 .5px var(--edge), 0 14px 40px var(--shadow);
+  backdrop-filter: blur(16px) saturate(185%);
 }
 .hud-popover[data-popover="usage"] { width: min(440px, calc(100vw - 16px)); }
 .hud-heading {

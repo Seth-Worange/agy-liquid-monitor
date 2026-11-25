@@ -131,9 +131,16 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
 
   function placeBars() {
     const titlebar = document.querySelector('[class*="@container/titlebar"]');
-    const nativeActions = document.querySelector('[data-testid="pane-titlebar-toolbar"], [data-testid="toggle-aux-sidebar"]');
-    const titleGroup = titlebar?.firstElementChild || nativeActions?.parentElement;
-    if (titleGroup && top.el.parentElement !== titleGroup) titleGroup.append(top.el);
+    const actionSelector = '[data-testid="pane-titlebar-toolbar"], [data-testid="toggle-aux-sidebar"]';
+    const nativeAction = titlebar?.querySelector(actionSelector) || document.querySelector(actionSelector);
+    const rightGroup = titlebar?.children.length > 1 ? titlebar.lastElementChild : null;
+    const controls = rightGroup?.matches('div, nav, [role="toolbar"]') ? rightGroup : null;
+    const parent = controls || rightGroup?.parentElement || nativeAction?.parentElement;
+    const before = controls?.firstElementChild || rightGroup || parent?.firstElementChild;
+    if (parent && (top.el.parentElement !== parent || before !== top.el)) {
+      if (before?.parentElement === parent) parent.insertBefore(top.el, before);
+      else parent.prepend(top.el);
+    }
     const triggers = [...document.querySelectorAll('[data-testid="model-selector-trigger"]')]
       .filter((trigger) => trigger.getClientRects().length && trigger.closest('.agy-composer-footer, [data-testid="agent-input-box"]'));
     const visible = new Set(triggers);
@@ -200,7 +207,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     if (!open) return;
     const anchor = open.button.getBoundingClientRect();
     const width = popover.offsetWidth;
-    const left = Math.max(8, Math.min(innerWidth - width - 8, open.bar === top ? anchor.left : anchor.right - width));
+    const left = Math.max(8, Math.min(innerWidth - width - 8, anchor.right - width));
     const above = open.bar !== top && anchor.top > 240;
     const available = above ? anchor.top - 16 : innerHeight - anchor.bottom - 16;
     popover.style.maxHeight = `${Math.max(96, available)}px`;

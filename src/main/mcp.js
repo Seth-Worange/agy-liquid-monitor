@@ -20,7 +20,7 @@ const tools = [
     _meta: {
       ui: { resourceUri: uri },
       'com.google.antigravity/ui': {
-        entrypoints: [{ type: 'global', title: 'Liquid Monitor' }]
+        entrypoints: [{ type: 'global', title: 'Liquid Monitor' }, { type: 'aux_pane', title: 'Liquid Monitor' }]
       }
     }
   },
