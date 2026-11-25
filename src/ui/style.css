@@ -273,6 +273,12 @@ footer { justify-content: space-between; margin-top: 19px; color: var(--quiet); 
   .summary-card .ring { width: 34px; height: 34px; font-size: 9px; }
   .pane { padding: 18px; }
 }
+@media (max-width: 680px) {
+  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary-card:last-child { grid-column: 1 / -1; }
+  .hero-stats { column-gap: 17px; }
+  .hero-stats .metric { min-width: 62px; }
+}
 @media (max-width: 570px) {
   .shell { padding: 16px 12px; }
   .header { gap: 6px; }
