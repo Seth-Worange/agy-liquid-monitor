@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Liquid Monitor 状态栏预览</title>
+  <style>
+    :root { color-scheme: dark; --bg: #161617; --fg: #eaeaea; --muted: #ababaf; --pane: #202022; --edge: #38383b; }
+    :root[data-theme="light"] { color-scheme: light; --bg: #f6f6f7; --fg: #252527; --muted: #626265; --pane: #fff; --edge: #dedee1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--fg); background: var(--bg); font: 13px "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; }
+    header.shell { min-height: 56px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 24px; gap: 8px; border-bottom: 1px solid var(--edge); }
+    header.shell > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    h1 { margin: 0; font-size: 14px; font-weight: 600; }
+    button, textarea { font: inherit; color: inherit; }
+    button.native { padding: 5px 8px; border: 1px solid var(--edge); border-radius: 7px; color: var(--muted); background: var(--pane); }
+    main { max-width: 816px; min-height: calc(100dvh - 56px); margin: auto; padding: 28px 20px; display: flex; flex-direction: column; gap: 20px; }
+    main > article { flex: 1; max-width: 440px; padding-top: 52px; }
+    main > article h2 { margin: 0 0 8px; font-size: 19px; font-weight: 600; }
+    main > article p { color: var(--muted); margin: 0; line-height: 1.6; }
+    .composer { padding: 12px; border: 1px solid var(--edge); background: var(--pane); border-radius: 14px; }
+    .composer textarea { width: 100%; min-height: 58px; resize: vertical; border: 0; background: transparent; }
+    .agy-composer-footer { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+    @media (max-width: 560px) { header.shell { padding: 8px 12px; } main { padding: 12px; } }
+  </style>
+</head>
+<body>
+  <header class="shell @container/titlebar">
+    <div><h1>Liquid Monitor</h1></div>
+    <div><button class="native" id="toggle-theme" type="button">切换日夜主题</button></div>
+  </header>
+  <main>
+    <article><h2>状态栏演示</h2><p>点开顶部的额度或今日用量，或在聊天框下方查看会话、上下文和子代理。</p></article>
+    <div data-cascade-id="design" data-pane-id="preview">
+      <div class="composer" data-testid="agent-input-box">
+        <textarea aria-label="聊天输入框预览" placeholder="输入消息…"></textarea>
+        <div class="agy-composer-footer">
+          <div><button class="native" type="button" aria-label="Model selector, current: Gemini 4 Carbon" data-testid="model-selector-trigger">Gemini 4 Carbon</button></div>
+          <div><button class="native" type="button" disabled>发送</button></div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const fixture = /* FIXTURE */;
+    window.agyLiquidMonitor = { snapshot: async ({ ids, period, date }) => ({
+      panels: fixture.panels.filter(({ main }) => ids.includes(main.conversationId)),
+      quota: fixture.quota,
+      usage: { ...fixture.reports[period], ...fixture.days[date] }
+    }) };
+    if (new URLSearchParams(location.search).get('theme') === 'light') document.documentElement.dataset.theme = 'light';
+    document.querySelector('#toggle-theme').addEventListener('click', () => {
+      const { dataset } = document.documentElement;
+      dataset.theme = dataset.theme === 'dark' ? 'light' : 'dark';
+    });
+    /* HUD */
+  </script>
+</body>
+</html>

@@ -98,7 +98,7 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
     }));
     const requested = Array.isArray(query.ids) ? query.ids.slice(0, 4) : [];
     const selected = [...new Set(requested)].filter((id) => typeof id === 'string' && sessionId.test(id) && main.has(id));
-    if (!selected.length && menu.length) selected.push(menu[0].id);
+    if (!selected.length && menu.length && query.fallback !== false) selected.push(menu[0].id);
 
     const hub = liveHub(dataDir);
     const accountPromise = readAccount(hub, force);
@@ -147,7 +147,7 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
     });
 
     const activeQuota = buildQuotaSnapshot({
-      ...identity, nowMs: Date.now(), updatedAtMs: identity?.at, currentModel: panels[0]?.main.latestModel
+      ...identity, nowMs: Date.now(), updatedAtMs: identity?.at, currentModel: query.currentModel || panels[0]?.main.latestModel
     });
     const { name, planFullName, planBadge, initials } = activeQuota.profile;
     return {

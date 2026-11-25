@@ -31,7 +31,7 @@ test('the MCP server exposes the Windows dashboard and an offline, read-only sna
   assert.equal(results.get(0).result.protocolVersion, '2025-06-18');
   const [open, snapshot] = results.get(1).result.tools;
   assert.equal(open._meta.ui.resourceUri, uri);
-  assert.deepEqual(open._meta['com.google.antigravity/ui'].entrypoints.map((entry) => entry.type), ['aux_pane', 'global']);
+  assert.deepEqual(open._meta['com.google.antigravity/ui'].entrypoints.map((entry) => entry.type), ['global']);
   assert.deepEqual(snapshot._meta.ui.visibility, ['app']);
   assert.equal(snapshot.annotations.readOnlyHint, true);
   const [page] = results.get(2).result.contents;

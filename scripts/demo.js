@@ -30,6 +30,7 @@ function demoData(nowMs = Date.now()) {
     })
   }));
   sessions[0].calls.at(-1).startStepIndex = 42;
+  sessions[0].calls.at(-2).cacheReadTokens += 245000;
   const panels = sessions.map((sess, index) => {
     const main = computeSessionStats({ ...sess, turns: 13 - index * 3, checkpointCount: index === 0 ? 2 : 0 });
     const children = index === 0 ? [

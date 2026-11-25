@@ -1,6 +1,8 @@
 # Third-party notices
 
-`src/core/`, `src/main/sqlite-reader.js` and the corresponding tests include adapted MIT-licensed code from [ag-vario](https://github.com/Staaaying/ag-vario/tree/ceaa53e2744dc2d65e1387c8ca31ae119a968486), Copyright (c) 2026 Staaaying. The original MIT text is in [LICENSE](LICENSE).
+`src/core/`, `src/main/sqlite-reader.js`, `scripts/asar.js` and the corresponding tests include adapted MIT-licensed code from [ag-vario](https://github.com/Staaaying/ag-vario/tree/ceaa53e2744dc2d65e1387c8ca31ae119a968486), Copyright (c) 2026 Staaaying. The original MIT text is in [LICENSE](LICENSE).
+
+The Gemini model labels use [Google Sans Flex](https://github.com/googlefonts/googlesans-flex), redistributed with its [SIL Open Font License](src/ui/fonts/OFL-Google-Sans-Flex.txt).
 
 Pricing, quota modeling and the local service contract also reference [Antigravity Context Viewer](https://github.com/elviscjn-cjn/antigravity-context-viewer), Copyright (c) 2026 Antigravity Context Viewer Contributors, under the MIT license below.
 

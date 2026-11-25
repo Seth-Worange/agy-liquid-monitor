@@ -2,10 +2,11 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { readStyle } = require('./ui-source');
 
 function renderPage({ demo = false } = {}) {
   const read = (name) => fs.readFileSync(path.join(__dirname, '..', 'ui', name), 'utf8');
-  let html = read('index.html').replace('/* CSS */', () => read('style.css'));
+  let html = read('index.html').replace('/* CSS */', () => readStyle());
   if (demo) {
     const { demoData } = require('../../scripts/demo');
     const fixture = JSON.stringify(demoData()).replaceAll('<', '\\u003c');
@@ -21,7 +22,7 @@ function renderPage({ demo = false } = {}) {
       });
     </script>`);
   }
-  return html.replace('/* JAVASCRIPT */', () => read('app.js'));
+  return html.replace('/* JAVASCRIPT */', () => [read('views.js'), read('app.js')].join('\n'));
 }
 
 module.exports = { renderPage };

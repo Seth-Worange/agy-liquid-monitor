@@ -1,6 +1,6 @@
 {
   "name": "agy-liquid-monitor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Liquid Glass usage monitor for Antigravity Desktop on Windows",
   "license": "MIT",
@@ -8,6 +8,9 @@
   "scripts": {
     "build": "node scripts/build.js",
     "preview": "node scripts/preview.js",
-    "test": "node --test"
+    "test": "node --test",
+    "hud:check": "node scripts/hud.js check",
+    "hud:install": "node scripts/hud.js install",
+    "hud:restore": "node scripts/hud.js restore"
   }
 }
