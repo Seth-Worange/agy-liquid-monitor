@@ -38,7 +38,7 @@
 
 适用于 Windows 10/11 上的 Antigravity Desktop 2.x，已针对 **2.35.1** 验证。安装原生状态栏需要 Node.js **22.13 或更高版本**。
 
-1. 克隆仓库，或下载并解压 Windows 安装包。
+1. 从 [GitHub Releases 下载 Windows 安装包](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip)，解压后进入 `agy-liquid-monitor` 目录。也可以直接克隆仓库。
 2. 完全退出 Antigravity（包括托盘中的进程）。
 3. 在仓库或解压目录打开 PowerShell，执行兼容检查，再安装状态栏：
 
