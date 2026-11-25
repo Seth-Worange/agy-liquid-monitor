@@ -1,42 +1,105 @@
+<div align="center">
+
 # AGY Liquid Monitor
 
-面向 **Windows 10/11 上的 Antigravity Desktop 2.0** 的只读用量监控插件。聊天框下方显示会话、上下文和子代理。窗口顶部显示 5 小时与 7 天额度和今日 Token。点击数字展开明细。状态栏继承宿主界面字体，并随 Antigravity 日夜主题切换。
+**Antigravity Desktop 的 Windows 用量监控插件**
+
+简洁的半透明状态栏，实时查看模型额度、会话 Token、上下文和子代理。
+
+[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)](#安装)
+[![Antigravity](https://img.shields.io/badge/Antigravity-2.x-4285F4)](#安装)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.13-339933?logo=nodedotjs&logoColor=white)](#安装)
+[![License: MIT](https://img.shields.io/badge/License-MIT-7c6ee6.svg)](LICENSE)
+
+</div>
+
+<p align="center">
+  <img src="docs/images/hud-dark.png" alt="深色主题下展开的上下文用量面板" width="49%">
+  <img src="docs/images/hud-light.png" alt="浅色主题下展开的模型额度面板" width="49%">
+</p>
+<p align="center"><sub>状态栏贴合 Antigravity 顶栏；点击额度或今日用量即可展开明细，并跟随宿主浅色与深色主题切换。</sub></p>
+
+## 功能
+
+- **顶部状态栏**：显示 5 小时、7 天额度和今日 Token，点击可查看账户套餐、共享额度池、重置时间及历史用量。
+- **会话状态**：在聊天框下方查看 Token、对话轮数、模型调用、缓存命中、首字延迟和输出速度。
+- **上下文检查**：查看窗口占用、压缩次数，以及系统提示词、技能规则、MCP 工具和消息等内容的估算占比。
+- **子代理状态**：查看运行状态、模型与上下文占用。
+- **用量看板**：在 Antigravity 侧栏查看额度、会话与历史趋势；支持 7 天、30 天和全部周期。
+- **原生主题**：沿用宿主字体与日夜主题，采用轻量半透明材质。
 
 ## 安装
 
-支持经过兼容检查的 Antigravity Desktop **2.x Windows** 版本，目标版本为 **2.35.1**。安装需要 Node.js **22.13+**。在仓库或解压后的安装包目录运行以下命令。
+适用于 Windows 10/11 上的 Antigravity Desktop 2.x，已针对 **2.35.1** 验证。安装原生状态栏需要 Node.js **22.13 或更高版本**。
+
+1. 克隆仓库，或下载并解压 Windows 安装包。
+2. 完全退出 Antigravity（包括托盘中的进程）。
+3. 在仓库或解压目录打开 PowerShell，执行兼容检查，再安装状态栏：
+
+   ```powershell
+   npm run hud:check
+   npm run hud:install
+   ```
+
+安装程序会验证并备份原始应用归档。客户端更新后，请重新检查兼容性并安装。要还原原版，在 Antigravity 完全退出后运行：
 
 ```powershell
-npm run hud:check
-npm run hud:install
+npm run hud:restore
 ```
 
-安装前从菜单或托盘完全退出 Antigravity。装完重新打开客户端。自定义安装目录可加参数 `-- --target "D:\Apps\Antigravity\resources\app.asar"`。
+自定义安装位置：
 
-安装会校验并备份原始 `app.asar`，然后更换归档。客户端更新后可重新运行兼容检查与安装。完全退出客户端后，执行 `npm run hud:restore` 可按 SHA-256 校验还原原版归档。
+```powershell
+npm run hud:check -- --target "D:\Apps\Antigravity\resources\app.asar"
+npm run hud:install -- --target "D:\Apps\Antigravity\resources\app.asar"
+```
 
-可另用 `agy plugin install .` 注册 MCP 看板。打开任一会话，在右上角打开侧栏，再从右侧栏的 **+ → Plugins → Liquid Monitor** 打开主页面。左栏 **Plugins → Liquid Monitor** 也可打开全页。MCP 看板需要 Antigravity App 2.34.0+。用 `npm run preview` 可以在浏览器里试用带演示数据的状态栏。
+### 打开完整看板
 
-## 能看到什么
+可选安装 MCP 看板：
 
-| 面板 | 指标与交互 |
+```powershell
+agy plugin install .
+```
+
+进入任一会话后，在右侧栏选择 **+ → Plugins → Liquid Monitor**。也可以从 **Overview → Plugins → Liquid Monitor** 打开全页看板。MCP 看板需要 Antigravity App 2.34.0 或更高版本。
+
+## 看板指标
+
+| 区域 | 内容 |
 | --- | --- |
-| 顶部状态栏 | 5 小时和 7 天额度、今日 Token。点击展开额度与历史用量 |
-| 会话 | 累计 Token、对话轮数、模型调用次数、模型与推理档位、缓存命中率、首字延迟、输出速度和模型耗时。聊天分屏分别读取对应会话 |
-| 上下文 | 窗口使用率与压缩次数、最近一次压缩前后占用、系统提示词、技能与规则、MCP 工具、内置工具和消息与输出五类占用估算 |
-| 子代理 | 运行数与总数、各子代理的运行状态、模型和上下文占用 |
-| 额度 | 5 小时与 7 天额度环、账户套餐、各共享池余量、重置倒计时和周消耗速度 |
-| 历史用量 | 7 天、30 天与全部周期，总量、预估费用、活跃日均 Token、会话均值、日均模型时长。可点选 30 天热力图中的日期，筛选模型用量与会话 Top 3 |
+| 会话 | 累计 Token、对话轮数、模型与推理档位、缓存命中率、首字延迟、输出速度 |
+| 上下文 | 使用率、压缩记录、系统提示词、技能与规则、MCP/内置工具及消息占比估算 |
+| 子代理 | 运行状态、模型、上下文占用和任务数量 |
+| 额度 | 5 小时与 7 天额度、账户套餐、共享额度池、重置倒计时和消耗速度 |
+| 历史用量 | 7 天、30 天及全部周期；Token、预估费用、热力图、模型分布和会话排行 |
 
-## 数据与估算
+## 数据说明
 
-- Windows 历史记录来自 `%USERPROFILE%\.gemini\antigravity\conversation_summaries.db` 和 `conversations\*.db`。SQLite 以只读方式打开，增量索引仅保存在内存。
-- 实时会话、套餐和额度通过已启动的本地 Antigravity 服务读取，插件只连接 `127.0.0.1`。服务离线时仍可查看可用的历史记录。会话数据可能因客户端版本、登录状态和本地记录保留情况而异。
-- 费用按内置 API 单价估算。缺少单价时显示未定价，估算金额与订阅账单无关。上下文细分按可读取的内容计算，只有模型公开窗口上限时才显示使用百分比。
-- 模型品牌名称保留文字。Gemini 使用随包附带的 Google Sans Flex。Claude 和 GPT 分别优先使用本机的 Anthropic Serif 和 OpenAI Sans，无对应字库时使用 Georgia 和 Segoe UI。
+- 历史记录从 `%USERPROFILE%\.gemini\antigravity\conversation_summaries.db` 和 `conversations\*.db` 只读读取；增量索引保存在内存中。
+- 实时会话、套餐和额度通过 Antigravity 已启动的本地服务获取，连接范围限于 `127.0.0.1`。离线时仍可查看已有历史记录。
+- 费用根据内置 API 单价估算，不等同于订阅账单；上下文类别是可读取内容的估算值。
+- 插件不会要求 API Key。实际可见数据取决于 Antigravity 版本、登录状态及本地记录。
 
-## 开发
+## 预览与开发
 
-`src/core` 包含模型、Token、上下文和额度计算，`src/main` 提供 Windows 数据读取和宿主桥接，`src/ui` 提供状态栏和全页看板。运行 `npm test` 验证数据、协议和归档挂载，运行 `npm run build` 输出安装目录与可离线打开的 `dist/preview.html`。项目没有 npm 运行依赖。
+无需安装插件即可在浏览器查看演示界面：
 
-部分数据解析和统计逻辑来自 [ag-vario](https://github.com/Staaaying/ag-vario)。相关版权及许可见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。[Antigravity MCP App 文档](https://antigravity.google/docs/mcp-apps/)
+```powershell
+npm run preview
+```
+
+演示使用虚构数据。常用开发命令：
+
+```powershell
+npm test
+npm run build
+```
+
+项目没有 npm 运行时依赖。核心计算位于 `src/core`，Windows 数据读取与宿主桥接位于 `src/main`，状态栏和看板界面位于 `src/ui`。
+
+## 许可与致谢
+
+本项目采用 [MIT License](LICENSE)。部分计算及数据解析逻辑改编自 [ag-vario](https://github.com/Staaaying/ag-vario)，额度和本地服务协议参考 [Antigravity Context Viewer](https://github.com/elviscjn-cjn/antigravity-context-viewer)；Google Sans Flex 字体遵循随附的 SIL Open Font License。第三方版权和许可文本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+Antigravity、Gemini、Claude 和 GPT 为各自权利人的产品或商标。本项目为社区插件，与 Google、Anthropic 或 OpenAI 无隶属关系。
