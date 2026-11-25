@@ -6,7 +6,8 @@ const { readStyle } = require('./ui-source');
 
 function renderPage({ demo = false } = {}) {
   const read = (name) => fs.readFileSync(path.join(__dirname, '..', 'ui', name), 'utf8');
-  let html = read('index.html').replace('/* CSS */', () => readStyle());
+  let html = read('index.html').replace('/* CSS */', () => readStyle())
+    .replace('<!-- LOGO -->', () => read('logo.svg'));
   if (demo) {
     const { demoData } = require('../../scripts/demo');
     const fixture = JSON.stringify(demoData()).replaceAll('<', '\\u003c');
@@ -22,7 +23,7 @@ function renderPage({ demo = false } = {}) {
       });
     </script>`);
   }
-  return html.replace('/* JAVASCRIPT */', () => [read('views.js'), read('app.js')].join('\n'));
+  return html.replace('/* JAVASCRIPT */', () => ['views.js', 'appearance.js', 'app.js'].map(read).join('\n'));
 }
 
 module.exports = { renderPage };

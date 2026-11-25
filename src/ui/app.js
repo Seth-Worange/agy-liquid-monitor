@@ -8,7 +8,6 @@ const framed = window.parent !== window;
 const content = $('#content');
 let state = { view: 'overview', period: '30D', date: null, ids: [] };
 let result = null;
-let themeOverride = null;
 let hostTheme = null;
 let busy = false;
 let refreshPending = false;
@@ -17,11 +16,18 @@ let hostConnected = false;
 
 const { overview, sessionView, sessionDetail, contextDetail, agentDetail, quotaView, usageView, escape } = createMonitorViews(state);
 
+const appearance = createAppearance(applyTheme);
+const appearanceButton = $('#appearance');
+const appearancePanel = $('#appearance-panel');
+appearanceButton.querySelector('svg').innerHTML = appearance.icon;
+appearancePanel.innerHTML = appearance.markup;
+appearance.bind(appearancePanel);
+
 function applyTheme() {
-  document.documentElement.dataset.theme = themeOverride || hostTheme || (systemTheme.matches ? 'light' : 'dark');
+  appearance.apply(document.documentElement, hostTheme || (systemTheme.matches ? 'light' : 'dark'));
 }
 function applyHostContext(hostContext = {}) {
-  if (hostContext.theme) hostTheme = hostContext.theme;
+  if (hostContext.theme === 'light' || hostContext.theme === 'dark') hostTheme = hostContext.theme;
   const hostFont = hostContext.styles?.variables?.['--font-sans'];
   if (typeof hostFont === 'string') document.documentElement.style.setProperty('--agy-ui-font', hostFont);
   applyTheme();
@@ -85,7 +91,7 @@ async function readData(query) {
   if (!framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
   if (!hostConnected) {
     const init = await request('ui/initialize', {
-      appInfo: { name: 'AGY Liquid Monitor', version: '0.2.1' },
+      appInfo: { name: 'AGY Liquid Monitor', version: '0.2.2' },
       appCapabilities: {}, protocolVersion: '2026-01-26'
     });
     applyHostContext(init?.hostContext);
@@ -165,10 +171,15 @@ document.addEventListener('click', (event) => {
     void refresh();
   }
   if (button.id === 'refresh') void refresh(true);
-  if (button.id === 'theme') {
-    themeOverride = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-    applyTheme();
+  if (button === appearanceButton) {
+    appearancePanel.hidden = !appearancePanel.hidden;
+    appearanceButton.setAttribute('aria-expanded', String(!appearancePanel.hidden));
+    if (hostConnected) notify('ui/notifications/size-changed', { height: document.documentElement.scrollHeight });
   }
+});
+
+appearancePanel.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && appearance.closeThemeMenu(appearancePanel)) event.stopPropagation();
 });
 
 content.addEventListener('change', (event) => {

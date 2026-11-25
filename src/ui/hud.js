@@ -9,7 +9,8 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   }
   const state = { period: '30D', date: null };
   const views = createMonitorViews(state);
-  const labels = { session: '会话', context: '上下文', agents: '子代理', quota: '模型额度', usage: '历史用量' };
+  const appearance = createAppearance(applyAppearance);
+  const labels = { session: '会话', context: '上下文', agents: '子代理', quota: '模型额度', usage: '历史用量', appearance: '外观设置' };
   const validId = /^[a-z0-9][a-z0-9-]{0,127}$/i;
   const systemTheme = matchMedia('(prefers-color-scheme: light)');
   const composerBars = new Map();
@@ -20,7 +21,8 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     usage: '<path d="M3 13V8m5 5V3m5 10V6"/>',
     chevron: '<path d="m4 6 4 4 4-4"/>',
     refresh: '<path d="M13.5 4v4H9.5m4-.5A5.5 5.5 0 1 0 13 11"/>',
-    close: '<path d="m4 4 8 8m0-8-8 8"/>'
+    close: '<path d="m4 4 8 8m0-8-8 8"/>',
+    appearance: appearance.icon
   };
   const icon = (name) => `<svg class="${name}" viewBox="0 0 16 16" aria-hidden="true">${icons[name]}</svg>`;
   let result = null;
@@ -58,7 +60,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     return bar;
   }
 
-  const top = makeBar('top', ['quota', 'usage']);
+  const top = makeBar('top', ['quota', 'usage', 'appearance']);
   const portal = host({ 'data-agy-liquid-panel': '' });
   portal.root.innerHTML = `<section class="hud-popover" role="dialog" aria-modal="false" aria-labelledby="hud-title" popover="manual">
     <header class="hud-heading"><div><h2 id="hud-title"></h2><small class="hud-subtitle"></small></div>
@@ -89,6 +91,10 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     };
     for (const key of bar.sections) {
       const button = bar.root.querySelector(`[data-section="${key}"]`);
+      if (key === 'appearance') {
+        if (!button.firstElementChild) button.innerHTML = icon('appearance');
+        continue;
+      }
       if (bar !== top) button.setAttribute('aria-disabled', String(!bar.id));
       const readout = key === 'quota'
         ? [rings?.window5h, rings?.window7d].map((bucket, index) => `<span class="quota-pair">${miniRing(bucket?.remainingFraction, index ? 'blue' : 'cyan')}
@@ -185,8 +191,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         preferredModel = trigger.getAttribute('aria-label')?.match(/current:\s*(.+)$/i)?.[1] || trigger.textContent?.trim();
       }
     });
-    const theme = detectTheme();
-    for (const bar of [top, ...composerBars.values(), portal]) if (bar.el.dataset.theme !== theme) bar.el.dataset.theme = theme;
+    applyAppearance();
     if (open && (!open.button.isConnected || open.bar.id !== open.id)) closePanel(false);
     reposition();
     const nextIds = [...new Set(active)].slice(0, 4);
@@ -199,6 +204,11 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     paintBars();
   }
 
+  function applyAppearance() {
+    const theme = detectTheme();
+    for (const bar of [top, ...composerBars.values(), portal]) appearance.apply(bar.el, theme);
+  }
+
   function paintBars() {
     for (const bar of [top, ...composerBars.values()]) updateBar(bar);
   }
@@ -209,6 +219,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const width = popover.offsetWidth;
     const left = Math.max(8, Math.min(innerWidth - width - 8, anchor.right - width));
     const above = open.bar !== top && anchor.top > 240;
+    popover.style.setProperty('--hud-motion-offset', above ? '4px' : '-4px');
     const available = above ? anchor.top - 16 : innerHeight - anchor.bottom - 16;
     popover.style.maxHeight = `${Math.max(96, available)}px`;
     const y = above ? anchor.top - popover.offsetHeight - 8 : anchor.bottom + 8;
@@ -234,15 +245,22 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     portal.el.style.fontFamily = getComputedStyle(bar.el).fontFamily;
     popover.dataset.popover = section;
     portal.root.querySelector('#hud-title').textContent = labels[section];
-    renderPanel();
+    portal.root.querySelector('[data-refresh]').hidden = section === 'appearance';
+    if (section === 'appearance') {
+      portal.root.querySelector('.hud-subtitle').textContent = '';
+      detail.innerHTML = appearance.markup;
+      appearance.bind(detail);
+    } else {
+      renderPanel();
+    }
     popover.showPopover();
     reposition();
     portal.root.querySelector('[data-close]').focus({ preventScroll: true });
-    void refresh();
+    if (section !== 'appearance') void refresh();
   }
 
   function renderPanel() {
-    if (!open) return;
+    if (!open || open.section === 'appearance') return;
     const panel = result?.panels.find((item) => item.main.conversationId === open.id);
     portal.root.querySelector('.hud-subtitle').innerHTML = panel
       ? views.modelName(panel.main.latestModel?.displayName || '') +
@@ -283,7 +301,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         renderPanel();
       }
     } catch {
-      if (open && !result) detail.innerHTML = '<p class="note">暂时无法读取数据。可点击刷新重试。</p>';
+      if (open && open.section !== 'appearance' && !result) detail.innerHTML = '<p class="note">暂时无法读取数据。可点击刷新重试。</p>';
     } finally {
       pending = false;
       if (queued) {
@@ -314,7 +332,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     if (open && event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      closePanel();
+      if (open.section !== 'appearance' || !appearance.closeThemeMenu(detail)) closePanel();
     }
   }, true);
   let scheduled = false;
