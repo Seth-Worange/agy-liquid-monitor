@@ -11,7 +11,9 @@ const root = path.resolve(__dirname, '..');
 
 if (manifest.version !== version) throw new Error('Plugin and package versions must match');
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.name)) throw new Error('Invalid plugin name');
-const output = path.join(root, 'dist');
+const output = path.join(fs.realpathSync(root), 'dist');
+fs.mkdirSync(output, { recursive: true });
+if (path.relative(output, fs.realpathSync(output))) throw new Error('Build directory must be inside the project');
 const plugin = path.join(output, manifest.name);
 fs.rmSync(plugin, { recursive: true, force: true });
 fs.mkdirSync(plugin, { recursive: true });
@@ -23,4 +25,4 @@ const preview = fs.readFileSync(path.join(root, 'src/ui/hud-preview.html'), 'utf
   .replace('/* FIXTURE */', () => JSON.stringify(demoData()).replaceAll('<', '\\u003c'))
   .replace('/* HUD */', () => hudSource());
 fs.writeFileSync(path.join(output, 'preview.html'), preview, 'utf8');
-console.log(`Windows HUD & MCP package: ${plugin}\nBrowser HUD demo: ${path.join(output, 'preview.html')}`);
+console.log(`Windows and macOS HUD & MCP package: ${plugin}\nBrowser HUD demo: ${path.join(output, 'preview.html')}`);

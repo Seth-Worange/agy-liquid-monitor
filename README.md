@@ -4,11 +4,15 @@
 
 # AGY Liquid Monitor
 
-**Antigravity Desktop 的 Windows 用量监控插件**
+**Antigravity Desktop 的 Windows / macOS 用量监控插件**
 
 简洁的半透明状态栏，实时查看模型额度、会话 Token、上下文和子代理。
 
-[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)](#安装)
+[![下载 Windows 安装包](docs/images/download-windows.svg)](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip)
+[![下载 macOS 安装包](docs/images/download-macos.svg)](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip)
+
+[安装说明](#安装) · [版本记录](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
+
 [![Antigravity](https://img.shields.io/badge/Antigravity-2.x-4285F4)](#安装)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.13-339933?logo=nodedotjs&logoColor=white)](#安装)
 [![License: MIT](https://img.shields.io/badge/License-MIT-7c6ee6.svg)](LICENSE)
@@ -36,7 +40,9 @@
 
 ## 安装
 
-适用于 Windows 10/11 上的 Antigravity Desktop 2.x，已针对 **2.35.1** 验证。安装原生状态栏需要 Node.js **22.13 或更高版本**。
+需要 Antigravity Desktop 2.x 和 Node.js **22.13 或更高版本**。Windows 和 macOS 共用状态栏、Plugins 看板以及统计逻辑。
+
+### Windows
 
 1. 从 [GitHub Releases 下载 Windows 安装包](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip)，解压后进入 `agy-liquid-monitor` 目录。也可以直接克隆仓库。
 2. 完全退出 Antigravity（包括托盘中的进程）。
@@ -60,11 +66,32 @@ npm run hud:check -- --target "D:\Apps\Antigravity\resources\app.asar"
 npm run hud:install -- --target "D:\Apps\Antigravity\resources\app.asar"
 ```
 
+### macOS
+
+适配 Apple Silicon 和 Intel 的 Antigravity **2.35.2** 官方应用结构，安装命令在原生终端运行。macOS 27 的首次启动、权限提示与一次真实升级仍需 Mac 实机验证。
+
+1. [下载 macOS 安装包](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip)，或克隆仓库。
+2. 用 **⌘Q** 完全退出 Antigravity。解压安装包，在终端进入 `agy-liquid-monitor`，执行：
+
+   ```bash
+   npm run hud:check
+   npm run hud:install
+   open -a Antigravity
+   ```
+
+安装器会查找 `/Applications/Antigravity.app` 或 `~/Applications/Antigravity.app`。自定义位置可用 `--target` 指向应用内的归档：
+
+```bash
+npm run hud:install -- --target "$HOME/Applications/Antigravity.app/Contents/Resources/app.asar"
+```
+
+HUD 会改变应用包中的 `app.asar`，因此运行中的修改版应用不再通过原始签名校验。安装器保留签名材料，备份存于 `~/Library/Application Support/AGY Liquid Monitor/`。如果系统拒绝打开修改版，退出后运行 `npm run hud:restore` 恢复官方归档与签名，仍可通过正式 Plugins 入口使用看板。
+
 ### 随客户端更新自动重装
 
-安装 HUD 后，照常点击 Antigravity 内的「更新并重启」。如果当前客户端支持接管重启，官方安装器会先以静默方式完成更新。Liquid Monitor 随后检查新版本，重装状态栏，再打开 Antigravity。可以用 `npm run hud:check` 查看 `updateHandoff`。
+安装 HUD 后，照常点击 Antigravity 内的「更新并重启」。Windows 交给官方 NSIS 安装器，macOS 等待应用自带的 Squirrel 更新器完成替换。Liquid Monitor 随后检查新版本，重装状态栏，再打开 Antigravity。可以用 `npm run hud:check` 查看 `updateHandoff`。
 
-如果新版不兼容，更新后的 Antigravity 会直接打开。需要管理员权限的更新、手动运行的外部安装器以及不支持接管重启的版本仍按官方流程更新，之后可运行 `npm run hud:check` 检查能否手动重装。请保留安装 HUD 时使用的 Node.js。最近一次自动更新的结果记录在 `%LOCALAPPDATA%\AGY Liquid Monitor\last-update.log`。
+如果新版不兼容，更新后的 Antigravity 会直接打开。手动安装更新或更新入口不匹配时，可以重新运行 `npm run hud:check` 和 `npm run hud:install`。请保留安装 HUD 时使用的 Node.js。最近一次自动更新的结果记录在 Windows 的 `%LOCALAPPDATA%\AGY Liquid Monitor\last-update.log` 或 macOS 的 `~/Library/Application Support/AGY Liquid Monitor/last-update.log`。
 
 
 ### 打开完整看板
@@ -89,7 +116,7 @@ agy plugin install .
 
 ## 数据说明
 
-- 历史记录从 `%USERPROFILE%\.gemini\antigravity\conversation_summaries.db` 和 `conversations\*.db` 只读读取；增量索引保存在内存中。
+- 历史记录从 Windows 的 `%USERPROFILE%\.gemini\antigravity` 或 macOS 的 `~/.gemini/antigravity` 只读读取，包括 `conversation_summaries.db` 和 `conversations/*.db`。增量索引保存在内存中。
 - 实时会话、套餐和额度通过 Antigravity 已启动的本地服务获取，连接范围限于 `127.0.0.1`。离线时仍可查看已有历史记录。
 - 费用根据内置 API 单价估算，不等同于订阅账单；上下文类别是可读取内容的估算值。
 - 插件不会要求 API Key。实际可见数据取决于 Antigravity 版本、登录状态及本地记录。
@@ -109,7 +136,7 @@ npm test
 npm run build
 ```
 
-项目没有 npm 运行时依赖。核心计算位于 `src/core`，Windows 数据读取与宿主桥接位于 `src/main`，状态栏和看板界面位于 `src/ui`。
+项目没有 npm 运行时依赖。`src/core`、`src/main` 和 `src/ui` 分别负责共享计算、本地数据与界面。`scripts/platforms` 存放两端安装与备份规则，`src/platforms` 存放两端的更新入口。
 
 ## 许可与致谢
 

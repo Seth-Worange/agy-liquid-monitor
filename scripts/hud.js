@@ -1,13 +1,12 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const asar = require('./asar');
+const platforms = { win32: require('./platforms/windows'), darwin: require('./platforms/macos') };
 
 const root = path.resolve(__dirname, '..');
 const prefix = 'dist/agy-liquid-monitor/';
@@ -16,30 +15,6 @@ const utils = 'dist/utils.js';
 const preload = 'dist/preload.js';
 const updater = 'dist/updater.js';
 const allowedAnchor = /^([ \t]*)(?:void\s+)?loadHubWindowUrl\(\s*win\s*,\s*url(?:\s*,[^)\r\n]*)?\);[ \t]*(?=\r?$)/gm;
-const updateAnchor = /^([ \t]*)electron_updater_1\.autoUpdater\.quitAndInstall\(isSilent, true\);(?=\r?\n[ \t]+launched = Boolean\(updater\.quitAndInstallCalled\);)/gm;
-const fusesMarker = Buffer.from('dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX');
-
-function detectTarget() {
-  const userDir = path.join(os.homedir(), 'AppData', 'Local');
-  const dirs = [process.env.LOCALAPPDATA, userDir].filter(Boolean)
-    .map((dir) => path.join(dir, 'Programs', 'Antigravity'));
-  if (process.env.ProgramFiles) dirs.push(path.join(process.env.ProgramFiles, 'Antigravity'));
-  const file = dirs.map((dir) => path.join(dir, 'resources', 'app.asar')).find(fs.existsSync);
-  if (!file) throw new Error('找不到 Antigravity，请通过 --target 提供 resources/app.asar。');
-  return file;
-}
-
-function assertCompatible(target) {
-  const exe = path.resolve(path.dirname(target), '../Antigravity.exe');
-  const bytes = fs.readFileSync(exe);
-  const index = bytes.indexOf(fusesMarker);
-  const fuse = index + fusesMarker.length;
-  if (index < 0 || index !== bytes.lastIndexOf(fusesMarker) ||
-    bytes[fuse] !== 1 || bytes[fuse + 1] < 5 || bytes[fuse + 6] !== 48) {
-    throw new Error('此 Windows 客户端启用了 ASAR 完整性验证，或无法确认其状态。当前版本无法安装状态栏。');
-  }
-  return hostVersion(target);
-}
 
 function hostVersion(target) {
   const pkg = JSON.parse(asar.extractAsarFile(target, 'package.json'));
@@ -49,7 +24,7 @@ function hostVersion(target) {
   return pkg.version;
 }
 
-function patchFiles(source) {
+function patchFiles(source, platform = process.platform) {
   const original = asar.extractAsarFile(source, utils).toString('utf8');
   const hits = [...original.matchAll(allowedAnchor)];
   if (hits.length !== 1 || !original.includes('function getHubWebContents(')) {
@@ -72,12 +47,13 @@ try {
 `;
   const files = new Map([[utils, Buffer.from(newUtils)], [preload, Buffer.from(newPreload)]]);
   const updateEntry = asar.getAsarNode(asar.readAsarHeader(source).header, updater);
-  if (updateEntry && !updateEntry.unpacked && !updateEntry.link) {
+  const adapter = platforms[platform];
+  if (adapter && updateEntry && !updateEntry.unpacked && !updateEntry.link) {
     const updateSource = asar.extractAsarFile(source, updater).toString('utf8');
-    const matches = [...updateSource.matchAll(updateAnchor)];
+    const matches = [...updateSource.matchAll(adapter.updateCall)];
     if (matches.length === 1 && updateSource.includes('function getLastState(')) {
-      const next = updateSource.replace(updateAnchor, (_, indent) => indent +
-        'require("./agy-liquid-monitor/src/main/update-handoff").quitAndInstall(updater, isSilent, ' +
+      const next = updateSource.replace(adapter.updateCall, (_, indent) => indent +
+        `require("./agy-liquid-monitor/src/platforms/${adapter.updateEntry}/update").quitAndInstall(updater, isSilent, ` +
         `${JSON.stringify(process.execPath)}, electron_1.app.getVersion(), getLastState().update?.version);`);
       files.set(updater, Buffer.from(next));
     }
@@ -105,8 +81,8 @@ function archiveReader(file) {
   };
 }
 
-function stage(source, dest, versionOfHost, originalHash) {
-  const replacements = patchFiles(source);
+function stage(source, dest, versionOfHost, originalHash, platform = process.platform) {
+  const replacements = patchFiles(source, platform);
   const additions = new Map();
   const addFiles = (directory) => {
     for (const entry of fs.readdirSync(path.join(root, directory), { withFileTypes: true })) {
@@ -119,6 +95,7 @@ function stage(source, dest, versionOfHost, originalHash) {
   const { version } = require('../package.json');
   const updateHandoff = replacements.has(updater);
   if (updateHandoff) {
+    addFiles('scripts/platforms');
     for (const name of ['scripts/asar.js', 'scripts/hud.js', 'scripts/update-worker.js']) {
       additions.set(prefix + name, fs.readFileSync(path.join(root, name)));
     }
@@ -153,13 +130,7 @@ function installedInfo(target) {
 }
 
 function isStopped(target) {
-  const powershell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  const code = '$ErrorActionPreference = "Stop"; Get-CimInstance Win32_Process -Filter "Name = \'Antigravity.exe\'" | ' +
-    'ForEach-Object { if ($_.ExecutablePath) { $_.ExecutablePath } else { "UNKNOWN" } }';
-  const rows = execFileSync(powershell, ['-NoProfile', '-NonInteractive', '-Command', code],
-    { encoding: 'utf8', windowsHide: true, timeout: 5000 }).trim().split(/\r?\n/);
-  const exe = fs.realpathSync(path.resolve(path.dirname(target), '../Antigravity.exe')).toLowerCase();
-  return !rows.some((row) => row === 'UNKNOWN' || row.trim().toLowerCase() === exe);
+  return platforms[process.platform].isStopped(target);
 }
 
 function assertStopped(target) {
@@ -168,8 +139,9 @@ function assertStopped(target) {
   }
 }
 
-function withArchiveLock(target, handler) {
-  const lock = target + '.agy-liquid-monitor.lock';
+function withArchiveLock(prefix, handler) {
+  const lock = prefix + '.agy-liquid-monitor.lock';
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
   const fd = fs.openSync(lock, 'wx');
   try {
     return handler();
@@ -189,52 +161,62 @@ function cli(args) {
     if (!['--target', '--output'].includes(flags[i]) || !flags[i + 1]) throw new Error('安装参数无效。');
     options[flags[i]] = flags[i + 1];
   }
-  const target = path.resolve(options['--target'] || detectTarget());
-  if (process.platform !== 'win32') throw new Error('此安装器用于 Windows。');
+  const adapter = platforms[process.platform];
+  if (!adapter) throw new Error('此安装器支持 Windows 和 macOS。');
+  const specified = options['--target'] || adapter.detectTarget();
+  if (!specified) throw new Error('找不到 Antigravity，请通过 --target 指定 app.asar。');
+  const target = fs.realpathSync(path.resolve(specified));
   if (path.basename(target).toLowerCase() !== 'app.asar' || path.basename(path.dirname(target)).toLowerCase() !== 'resources') {
-    throw new Error('--target 应指向 Antigravity 的 resources/app.asar。');
+    throw new Error('--target 应指向 Antigravity 的 Resources/app.asar。');
   }
+  adapter.validateTarget?.(target);
   const repair = command === 'repair';
   if (repair) {
     const installed = installedInfo(target);
     if (installed) return { target, installed: installed.version, repaired: false };
     if (!isStopped(target)) return { target, repaired: false, reason: '客户端正在运行' };
   }
-  const versionOfHost = command === 'restore' ? hostVersion(target) : assertCompatible(target);
+  const versionOfHost = hostVersion(target);
+  if (command !== 'restore') adapter.assertCompatible(target);
   if (command === 'check') {
     const installed = installedInfo(target);
+    if (!installed) adapter.verifyOriginal?.(target);
     const updateHandoff = installed ? installed.updateHandoff === true : patchFiles(target).has(updater);
     return { target, hostVersion: versionOfHost, installed: installed?.version || null, compatible: true, updateHandoff };
   }
   if (command === 'stage') {
+    adapter.verifyOriginal?.(target);
     if (!options['--output']) throw new Error('stage 需要 --output。');
     const output = path.resolve(options['--output']);
     if (fs.existsSync(output)) throw new Error('输出路径已经存在。');
     return { output, hostVersion: versionOfHost, sha256: stage(target, output, versionOfHost, asar.sha256File(target)) };
   }
   assertStopped(target);
-  return withArchiveLock(target, () => {
+  const receiptPrefix = adapter.receiptPrefix(target);
+  return withArchiveLock(receiptPrefix, () => {
     const installed = installedInfo(target);
     if (repair && installed) return { target, installed: installed.version, repaired: false };
     const before = asar.sha256File(target);
     const originalHash = installed?.originalHash || before;
-    const backup = getBackup(target, originalHash);
+    const backup = getBackup(receiptPrefix, originalHash);
     if (command === 'restore' && !installed) return { target, hostVersion: versionOfHost, restored: false };
+    if (!installed) adapter.verifyOriginal?.(target);
     if (!installed && !fs.existsSync(backup)) fs.copyFileSync(target, backup, fs.constants.COPYFILE_EXCL);
     if (asar.sha256File(backup) !== originalHash) throw new Error('原始归档备份校验失败。');
-    if (installed && !fs.existsSync(target + `.agy-installed-${before}`)) {
+    if (installed && !fs.existsSync(receiptPrefix + `.agy-installed-${before}`)) {
       throw new Error('当前归档与本插件的安装记录不匹配。');
     }
     if (command === 'restore') {
       assertStopped(target);
       if (asar.sha256File(target) !== before) throw new Error('Antigravity 归档在操作中发生变化。');
       asar.atomicReplaceFile(backup, target, originalHash);
+      adapter.verifyOriginal?.(target);
       return { target, hostVersion: versionOfHost, restored: true };
     }
     const staging = target + `.agy-stage-${randomUUID()}`;
     try {
       const hash = stage(backup, staging, versionOfHost, originalHash);
-      const receipt = target + `.agy-installed-${hash}`;
+      const receipt = receiptPrefix + `.agy-installed-${hash}`;
       if (!fs.existsSync(receipt)) fs.writeFileSync(receipt, originalHash, { flag: 'wx' });
       assertStopped(target);
       if (asar.sha256File(target) !== before) throw new Error('Antigravity 归档在操作中发生变化。');
@@ -255,4 +237,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { cli, isStopped, patchFiles, stage };
+module.exports = { cli, hostVersion, isStopped, patchFiles, stage };

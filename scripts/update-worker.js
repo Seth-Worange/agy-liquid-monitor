@@ -5,10 +5,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
-const { cli, isStopped } = require('./hud');
+const { cli, hostVersion, isStopped } = require('./hud');
+const macos = require('./platforms/macos');
+const windows = require('./platforms/windows');
 
-async function waitFor(predicate) {
-  const deadline = Date.now() + 15000;
+async function waitFor(predicate, timeout = 15000) {
+  const deadline = Date.now() + timeout;
   do {
     if (predicate()) return true;
     await delay(300);
@@ -33,9 +35,31 @@ function runInstaller(file, args) {
   });
 }
 
-function reopen(exe, updated) {
+async function waitForMacUpdate(plan) {
+  let previous;
+  let stableAt = 0;
+  const installed = await waitFor(() => {
+    try {
+      const stat = fs.statSync(plan.target);
+      const fingerprint = `${stat.ino}:${stat.mtimeMs}:${stat.size}`;
+      if (hostVersion(plan.target) !== plan.toVersion) return false;
+      if (fingerprint !== previous) {
+        previous = fingerprint;
+        stableAt = Date.now();
+      }
+      return Date.now() - stableAt >= 1000;
+    } catch {
+      // The updater can temporarily remove the old bundle while installing.
+      previous = null;
+      return false;
+    }
+  }, 120000);
+  if (!installed) throw new Error('未能确认 macOS 官方更新已安装。请等待 Antigravity 更新结束后手动打开。');
+}
+
+function reopen(command, args, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawn(exe, updated ? ['--updated'] : [], { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
+    const child = spawn(command, args, { cwd, detached: true, stdio: 'ignore' });
     child.once('error', reject);
     child.once('spawn', () => {
       child.unref();
@@ -65,22 +89,38 @@ async function completeUpdate(plan, services) {
 
 async function main(plan) {
   const work = path.resolve(__dirname, '..');
-  const logs = path.join(process.env.LOCALAPPDATA || os.homedir(), 'AGY Liquid Monitor');
+  const mac = process.platform === 'darwin';
+  const logs = mac ? macos.stateDir() : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AGY Liquid Monitor');
   let report;
+  let repaired = false;
   try {
     report = await completeUpdate(plan, {
       awaitExit: (pid) => waitFor(() => exited(pid)),
-      install: runInstaller,
+      install: mac ? () => waitForMacUpdate(plan) : runInstaller,
       awaitClosed: (target) => waitFor(() => isStopped(target)),
       check: (target) => cli(['check', '--target', target]),
       repair: (target) => {
         const result = cli(['repair', '--target', target]);
         if (!result.repaired && !result.installed) throw new Error(result.reason);
+        repaired = result.repaired;
         return result;
       },
       launch: async (target, updated) => {
-        const exe = path.resolve(path.dirname(target), '../Antigravity.exe');
-        if (fs.existsSync(exe) && isStopped(target)) await reopen(exe, updated);
+        if (mac) {
+          if (updated && fs.existsSync(macos.bundle(target)) && isStopped(target)) {
+            try {
+              macos.openUpdatedApp(target);
+            } catch (error) {
+              if (!repaired || !isStopped(target)) throw error;
+              cli(['restore', '--target', target]);
+              macos.openUpdatedApp(target);
+              throw new Error('macOS 无法打开带状态栏的新版应用。已恢复原始签名并重新打开 Antigravity。');
+            }
+          }
+        } else {
+          const exe = windows.executable(target);
+          if (fs.existsSync(exe) && isStopped(target)) await reopen(exe, updated ? ['--updated'] : [], path.dirname(exe));
+        }
       }
     });
   } catch (error) {

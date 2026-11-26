@@ -1,9 +1,11 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 const path = require('node:path');
 const test = require('node:test');
-const { quitAndInstall } = require('../src/main/update-handoff');
+const { quitAndInstall } = require('../src/platforms/windows/update');
+const { quitAndInstall: quitAndInstallMac } = require('../src/platforms/macos/update');
 const { completeUpdate } = require('../scripts/update-worker');
 
 class NsisUpdater {
@@ -39,6 +41,49 @@ test('failure to start the helper leaves the original update and restart intact'
   const updater = new NsisUpdater();
   await quitAndInstall(updater, false, process.execPath, '2.35.2', '2.35.3', () => false);
   assert.deepEqual(updater.spawned, [{ command: updater.installerPath, args: updater.args }]);
+});
+
+class MacUpdater {
+  nativeUpdater = new EventEmitter();
+  autoRunAppAfterInstall = true;
+  restarts = [];
+
+  quitAndInstall() {
+    this.nativeUpdater.once('update-downloaded', () => this.handleUpdateDownloaded());
+  }
+
+  handleUpdateDownloaded() {
+    this.restarts.push(this.autoRunAppAfterInstall);
+  }
+}
+
+test('macOS delegates one restart only after Squirrel has staged the official update', () => {
+  const updater = new MacUpdater();
+  const plans = [];
+  const services = {
+    resourcesPath: path.join('/Applications', 'Antigravity.app', 'Contents', 'Resources'),
+    launchWorker: (_, plan) => { plans.push(plan); return true; }
+  };
+  quitAndInstallMac(updater, false, process.execPath, '2.35.2', '2.35.3', services);
+  quitAndInstallMac(updater, false, process.execPath, '2.35.2', '2.35.3', services);
+  assert.equal(plans.length, 0);
+  assert.deepEqual(updater.restarts, []);
+  updater.nativeUpdater.emit('update-downloaded');
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].target, path.join(services.resourcesPath, 'app.asar'));
+  assert.deepEqual(updater.restarts, [false]);
+  assert.equal(updater.autoRunAppAfterInstall, true);
+  assert.equal(Object.hasOwn(updater, 'handleUpdateDownloaded'), false);
+});
+
+test('macOS keeps the official relaunch if the helper is unavailable', () => {
+  const updater = new MacUpdater();
+  quitAndInstallMac(updater, false, process.execPath, '2.35.2', '2.35.3', {
+    resourcesPath: '/Applications/Antigravity.app/Contents/Resources',
+    launchWorker: () => false
+  });
+  updater.nativeUpdater.emit('update-downloaded');
+  assert.deepEqual(updater.restarts, [true]);
 });
 
 test('the helper waits for the official installer before touching the new archive and then reopens', async () => {

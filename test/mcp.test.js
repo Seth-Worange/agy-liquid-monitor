@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-test('the MCP server exposes the Windows dashboard and an offline, read-only snapshot', (t) => {
+test('the MCP server exposes the dashboard and an offline, read-only snapshot', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-mcp-'));
   t.after(() => fs.rmdirSync(dir));
   const uri = 'ui://agy-liquid-monitor/dashboard.html';

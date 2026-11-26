@@ -1,8 +1,8 @@
 {
   "name": "agy-liquid-monitor",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "private": true,
-  "description": "Liquid Glass usage monitor for Antigravity Desktop on Windows",
+  "description": "Liquid Glass usage monitor for Antigravity Desktop on Windows and macOS",
   "license": "MIT",
   "engines": { "node": ">=22.13" },
   "scripts": {
