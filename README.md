@@ -47,7 +47,7 @@
    npm run hud:install
    ```
 
-安装程序会验证并备份原始应用归档。客户端更新后，请重新检查兼容性并安装。要还原原版，在 Antigravity 完全退出后运行：
+安装程序会验证并备份原始应用归档。要还原原版，在 Antigravity 完全退出后运行：
 
 ```powershell
 npm run hud:restore
@@ -59,6 +59,13 @@ npm run hud:restore
 npm run hud:check -- --target "D:\Apps\Antigravity\resources\app.asar"
 npm run hud:install -- --target "D:\Apps\Antigravity\resources\app.asar"
 ```
+
+### 随客户端更新自动重装
+
+安装 HUD 后，照常点击 Antigravity 内的「更新并重启」。如果当前客户端支持接管重启，官方安装器会先以静默方式完成更新。Liquid Monitor 随后检查新版本，重装状态栏，再打开 Antigravity。可以用 `npm run hud:check` 查看 `updateHandoff`。
+
+如果新版不兼容，更新后的 Antigravity 会直接打开。需要管理员权限的更新、手动运行的外部安装器以及不支持接管重启的版本仍按官方流程更新，之后可运行 `npm run hud:check` 检查能否手动重装。请保留安装 HUD 时使用的 Node.js。最近一次自动更新的结果记录在 `%LOCALAPPDATA%\AGY Liquid Monitor\last-update.log`。
+
 
 ### 打开完整看板
 

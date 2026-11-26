@@ -10,8 +10,10 @@ const { version } = require('../package.json');
 const root = path.resolve(__dirname, '..');
 
 if (manifest.version !== version) throw new Error('Plugin and package versions must match');
+if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.name)) throw new Error('Invalid plugin name');
 const output = path.join(root, 'dist');
 const plugin = path.join(output, manifest.name);
+fs.rmSync(plugin, { recursive: true, force: true });
 fs.mkdirSync(plugin, { recursive: true });
 for (const name of ['src', 'scripts', 'docs', 'plugin.json', 'mcp_config.json', 'package.json', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) {
   fs.cpSync(path.join(root, name), path.join(plugin, name), { recursive: true });

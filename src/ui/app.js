@@ -91,7 +91,7 @@ async function readData(query) {
   if (!framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
   if (!hostConnected) {
     const init = await request('ui/initialize', {
-      appInfo: { name: 'AGY Liquid Monitor', version: '0.2.3' },
+      appInfo: { name: 'AGY Liquid Monitor', version: '0.2.4' },
       appCapabilities: {}, protocolVersion: '2026-01-26'
     });
     applyHostContext(init?.hostContext);

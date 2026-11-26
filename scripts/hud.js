@@ -14,7 +14,9 @@ const prefix = 'dist/agy-liquid-monitor/';
 const marker = prefix + 'installation.json';
 const utils = 'dist/utils.js';
 const preload = 'dist/preload.js';
+const updater = 'dist/updater.js';
 const allowedAnchor = /^([ \t]*)(?:void\s+)?loadHubWindowUrl\(\s*win\s*,\s*url(?:\s*,[^)\r\n]*)?\);[ \t]*(?=\r?$)/gm;
+const updateAnchor = /^([ \t]*)electron_updater_1\.autoUpdater\.quitAndInstall\(isSilent, true\);(?=\r?\n[ \t]+launched = Boolean\(updater\.quitAndInstallCalled\);)/gm;
 const fusesMarker = Buffer.from('dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX');
 
 function detectTarget() {
@@ -69,6 +71,17 @@ try {
 } catch {}
 `;
   const files = new Map([[utils, Buffer.from(newUtils)], [preload, Buffer.from(newPreload)]]);
+  const updateEntry = asar.getAsarNode(asar.readAsarHeader(source).header, updater);
+  if (updateEntry && !updateEntry.unpacked && !updateEntry.link) {
+    const updateSource = asar.extractAsarFile(source, updater).toString('utf8');
+    const matches = [...updateSource.matchAll(updateAnchor)];
+    if (matches.length === 1 && updateSource.includes('function getLastState(')) {
+      const next = updateSource.replace(updateAnchor, (_, indent) => indent +
+        'require("./agy-liquid-monitor/src/main/update-handoff").quitAndInstall(updater, isSilent, ' +
+        `${JSON.stringify(process.execPath)}, electron_1.app.getVersion(), getLastState().update?.version);`);
+      files.set(updater, Buffer.from(next));
+    }
+  }
   for (const [file, data] of files) new vm.Script(data.toString('utf8'), { filename: file });
   return files;
 }
@@ -104,7 +117,14 @@ function stage(source, dest, versionOfHost, originalHash) {
   };
   addFiles('src');
   const { version } = require('../package.json');
-  additions.set(marker, Buffer.from(JSON.stringify({ version, hostVersion: versionOfHost, originalHash })));
+  const updateHandoff = replacements.has(updater);
+  if (updateHandoff) {
+    for (const name of ['scripts/asar.js', 'scripts/hud.js', 'scripts/update-worker.js']) {
+      additions.set(prefix + name, fs.readFileSync(path.join(root, name)));
+    }
+    additions.set(prefix + 'package.json', Buffer.from(JSON.stringify({ version })));
+  }
+  additions.set(marker, Buffer.from(JSON.stringify({ version, hostVersion: versionOfHost, originalHash, updateHandoff })));
   const base = archiveReader(source);
   if (asar.getAsarNode(base.header, marker) || asar.getAsarNode(base.header, 'dist/ag-vario') || asar.getAsarNode(base.header, 'dist/meter-main.js')) {
     throw new Error('已检测到其他监控补丁，请使用原始 Antigravity 安装。');
@@ -132,14 +152,18 @@ function installedInfo(target) {
   return info;
 }
 
-function assertStopped(target) {
+function isStopped(target) {
   const powershell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const code = '$ErrorActionPreference = "Stop"; Get-CimInstance Win32_Process -Filter "Name = \'Antigravity.exe\'" | ' +
     'ForEach-Object { if ($_.ExecutablePath) { $_.ExecutablePath } else { "UNKNOWN" } }';
   const rows = execFileSync(powershell, ['-NoProfile', '-NonInteractive', '-Command', code],
-    { encoding: 'utf8', windowsHide: true }).trim().split(/\r?\n/);
+    { encoding: 'utf8', windowsHide: true, timeout: 5000 }).trim().split(/\r?\n/);
   const exe = fs.realpathSync(path.resolve(path.dirname(target), '../Antigravity.exe')).toLowerCase();
-  if (rows.some((row) => row === 'UNKNOWN' || row.trim().toLowerCase() === exe)) {
+  return !rows.some((row) => row === 'UNKNOWN' || row.trim().toLowerCase() === exe);
+}
+
+function assertStopped(target) {
+  if (!isStopped(target)) {
     throw new Error('请先从托盘或 Antigravity 菜单完全退出，再运行安装或还原。');
   }
 }
@@ -157,8 +181,8 @@ function withArchiveLock(target, handler) {
 
 function cli(args) {
   const [command, ...flags] = args;
-  if (!['check', 'stage', 'install', 'restore'].includes(command)) {
-    throw new Error('用法: node scripts/hud.js check|stage|install|restore [--target <resources/app.asar>] [--output <file>]');
+  if (!['check', 'stage', 'install', 'restore', 'repair'].includes(command)) {
+    throw new Error('用法: node scripts/hud.js check|stage|install|restore|repair [--target <resources/app.asar>] [--output <file>]');
   }
   const options = {};
   for (let i = 0; i < flags.length; i += 2) {
@@ -170,11 +194,17 @@ function cli(args) {
   if (path.basename(target).toLowerCase() !== 'app.asar' || path.basename(path.dirname(target)).toLowerCase() !== 'resources') {
     throw new Error('--target 应指向 Antigravity 的 resources/app.asar。');
   }
+  const repair = command === 'repair';
+  if (repair) {
+    const installed = installedInfo(target);
+    if (installed) return { target, installed: installed.version, repaired: false };
+    if (!isStopped(target)) return { target, repaired: false, reason: '客户端正在运行' };
+  }
   const versionOfHost = command === 'restore' ? hostVersion(target) : assertCompatible(target);
   if (command === 'check') {
     const installed = installedInfo(target);
-    if (!installed) patchFiles(target);
-    return { target, hostVersion: versionOfHost, installed: installed?.version || null, compatible: true };
+    const updateHandoff = installed ? installed.updateHandoff === true : patchFiles(target).has(updater);
+    return { target, hostVersion: versionOfHost, installed: installed?.version || null, compatible: true, updateHandoff };
   }
   if (command === 'stage') {
     if (!options['--output']) throw new Error('stage 需要 --output。');
@@ -185,6 +215,7 @@ function cli(args) {
   assertStopped(target);
   return withArchiveLock(target, () => {
     const installed = installedInfo(target);
+    if (repair && installed) return { target, installed: installed.version, repaired: false };
     const before = asar.sha256File(target);
     const originalHash = installed?.originalHash || before;
     const backup = getBackup(target, originalHash);
@@ -208,7 +239,7 @@ function cli(args) {
       assertStopped(target);
       if (asar.sha256File(target) !== before) throw new Error('Antigravity 归档在操作中发生变化。');
       fs.renameSync(staging, target);
-      return { target, hostVersion: versionOfHost, sha256: hash };
+      return { target, hostVersion: versionOfHost, sha256: hash, ...(repair ? { repaired: true } : {}) };
     } finally {
       if (fs.existsSync(staging)) fs.unlinkSync(staging);
     }
@@ -224,4 +255,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { cli, patchFiles, stage };
+module.exports = { cli, isStopped, patchFiles, stage };
