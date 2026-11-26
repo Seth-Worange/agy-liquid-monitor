@@ -38,7 +38,7 @@ See remaining model quota, session tokens, context usage, and subagent activity 
 
 ## Appearance settings
 
-Open **Appearance Settings** from the title bar or the top right of the dashboard. Follow Antigravity's theme or choose light, dark, pink, or green. Pink and green follow the host's brightness. The sliders adjust glass transparency (0–65%) and blur strength (0–100%) in real time. Lower blur settings preserve background detail. You can restore the defaults, and each surface saves its preferences where local storage is available.
+Open **Appearance Settings** from the title bar or the top right of the dashboard. Follow Antigravity's theme or choose light, dark, pink, or green. Pink and green follow the host's brightness. The sliders adjust glass transparency (0–65%) and blur strength (0–100%) in real time. Lower blur settings preserve background detail. You can restore the defaults. The title bar and dashboard share locally saved settings.
 
 ## Installation
 
@@ -111,6 +111,8 @@ agy plugin install .
 ```
 
 In a conversation, use **+ → Plugins → Liquid Monitor** in the right sidebar. To open the full dashboard, use **Overview → Plugins → Liquid Monitor**.
+
+The overview shows the current conversation when the host supplies its ID. If you open the dashboard manually and no ID is available, it labels the most recent session and lets you choose another. The visible dashboard refreshes every 20 seconds and when you return to it. In the heatmap, use the arrow keys to move between dates and Enter to filter the details.
 
 ## Dashboard metrics
 

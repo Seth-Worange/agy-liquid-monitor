@@ -3,6 +3,7 @@
 const { ipcMain } = require('electron');
 const { createMonitor } = require('./monitor');
 const { hudSource } = require('./ui-source');
+const { saveAppearance } = require('./preferences');
 
 const channel = 'agy-liquid-monitor:snapshot';
 const windows = new WeakMap();
@@ -18,12 +19,21 @@ function originOf(url) {
   }
 }
 
-ipcMain.handle(channel, (event, params) => {
+function assertMonitorFrame(event) {
   const { sender, senderFrame } = event;
   if (!senderFrame || senderFrame !== sender.mainFrame || !originOf(senderFrame.url) ||
     windows.get(sender) !== originOf(senderFrame.url)) {
     throw new Error('Liquid Monitor accepts only its Antigravity main frame');
   }
+}
+
+ipcMain.handle('agy-liquid-monitor:save-appearance', (event, settings) => {
+  assertMonitorFrame(event);
+  return saveAppearance(settings);
+});
+
+ipcMain.handle(channel, (event, params) => {
+  assertMonitorFrame(event);
   const query = {
     ids: Array.isArray(params?.ids) ? params.ids.slice(0, 4) : [],
     currentModel: typeof params?.currentModel === 'string' ? params.currentModel.slice(0, 120) : null,

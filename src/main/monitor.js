@@ -8,6 +8,7 @@ const { resolveModelIdentity } = require('../core/pricing');
 const { combineSessionWithSubagents, computeSessionStats, normalizeSubagentStatus } = require('../core/session');
 const { computeUsageReport } = require('../core/usage');
 const { liveHub, readHub } = require('./hub');
+const { readAppearance } = require('./preferences');
 const { DEFAULT_DATA_DIR, scanConversationsIncremental, readConversationDb } = require('./sqlite-reader');
 
 const sessionId = /^[a-z0-9][a-z0-9-]{0,127}$/i;
@@ -95,11 +96,13 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
     for (const row of sessions) if (!row.isChild && !main.has(row.conversationId)) main.set(row.conversationId, row);
     const available = [...main.values()].filter((row) => sessionId.test(row.conversationId))
       .sort((a, b) => b.lastModifiedMs - a.lastModifiedMs);
-    const menu = available.slice(0, 150).map((row) => ({
-      id: row.conversationId, title: String(row.title).slice(0, 100)
-    }));
     const requested = Array.isArray(query.ids) ? query.ids.slice(0, 4) : [];
     const selected = [...new Set(requested)].filter((id) => typeof id === 'string' && sessionId.test(id) && main.has(id));
+    const recent = available.slice(0, 150);
+    const visible = new Set(recent.map((row) => row.conversationId));
+    const menu = [...recent, ...selected.filter((id) => !visible.has(id)).map((id) => main.get(id))].map((row) => ({
+      id: row.conversationId, title: String(row.title).slice(0, 100)
+    }));
     if (!selected.length && menu.length && query.fallback !== false) selected.push(menu[0].id);
 
     const hub = liveHub(dataDir);
@@ -154,6 +157,7 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
     const { name, planFullName, planBadge, initials } = activeQuota.profile;
     return {
       updatedAt: now,
+      appearance: readAppearance(),
       menu,
       panels,
       usage: computeUsageReport(sessions, { period, nowMs: now, selectedDateKey: date }),

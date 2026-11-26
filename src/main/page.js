@@ -13,9 +13,9 @@ function renderPage({ demo = false } = {}) {
     const fixture = JSON.stringify(demoData()).replaceAll('<', '\\u003c');
     html = html.replace('<body>', () => `<body data-demo="true"><script>
       const demoFixture = ${fixture};
-      window.monitorDemo = ({ ids, period, date }) => ({
+      window.monitorDemo = ({ ids, period, date, fallback }) => ({
         updatedAt: Date.now(),
-        panels: (ids.length ? ids : [demoFixture.menu[0].id]).map((id) =>
+        panels: (ids.length || fallback === false ? ids : [demoFixture.menu[0].id]).map((id) =>
           demoFixture.panels.find((panel) => panel.main.conversationId === id)).filter(Boolean),
         menu: demoFixture.menu,
         quota: demoFixture.quota,
@@ -23,7 +23,7 @@ function renderPage({ demo = false } = {}) {
       });
     </script>`);
   }
-  return html.replace('/* JAVASCRIPT */', () => ['views.js', 'appearance.js', 'app.js'].map(read).join('\n'));
+  return html.replace('/* JAVASCRIPT */', () => ['views.js', 'interaction.js', 'appearance.js', 'app.js'].map(read).join('\n'));
 }
 
 module.exports = { renderPage };

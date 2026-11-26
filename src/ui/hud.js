@@ -9,7 +9,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   }
   const state = { period: '30D', date: null };
   const views = createMonitorViews(state);
-  const appearance = createAppearance(applyAppearance);
+  const appearance = createAppearance(applyAppearance, api.saveAppearance && ((settings) => api.saveAppearance(settings)));
   const labels = { session: '会话', context: '上下文', agents: '子代理', quota: '模型额度', usage: '历史用量', appearance: '外观设置' };
   const validId = /^[a-z0-9][a-z0-9-]{0,127}$/i;
   const systemTheme = matchMedia('(prefers-color-scheme: light)');
@@ -248,6 +248,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     portal.root.querySelector('[data-refresh]').hidden = section === 'appearance';
     if (section === 'appearance') {
       portal.root.querySelector('.hud-subtitle').textContent = '';
+      renderedContent.delete(detail);
       detail.innerHTML = appearance.markup;
       appearance.bind(detail);
     } else {
@@ -278,7 +279,8 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
       html = templates[open.section]() || (open.id && !panel
         ? '<p class="note">当前会话还没有可读取的模型调用。</p>' : html);
     }
-    if (detail.innerHTML !== html) detail.innerHTML = html;
+    renderWithFocus(detail, html, () => detail.querySelector('.heat-cell[tabindex="0"]') ||
+      portal.root.querySelector('[data-close]'));
     reposition();
   }
 
@@ -290,18 +292,22 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     }
     pending = true;
     const requestRevision = revision;
+    const checkpoint = appearance.checkpoint();
     try {
       const data = await api.snapshot({
         ids, period: state.period, date: state.date, context: open?.section === 'context',
         currentModel: model, fallback: false, force
       });
+      appearance.receive(data.appearance, checkpoint);
       if (requestRevision === revision) {
         result = data;
         paintBars();
         renderPanel();
       }
     } catch {
-      if (open && open.section !== 'appearance' && !result) detail.innerHTML = '<p class="note">暂时无法读取数据。可点击刷新重试。</p>';
+      if (open && open.section !== 'appearance' && !result) {
+        renderWithFocus(detail, '<p class="note">暂时无法读取数据。可点击刷新重试。</p>');
+      }
     } finally {
       pending = false;
       if (queued) {
@@ -312,6 +318,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     }
   }
 
+  portal.root.addEventListener('keydown', heatmapKeydown);
   portal.root.addEventListener('click', (event) => {
     const button = event.target.closest('button');
     if (!button) return;

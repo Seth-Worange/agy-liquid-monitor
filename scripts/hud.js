@@ -41,7 +41,8 @@ function patchFiles(source, platform = process.platform) {
   const newPreload = originalPreload + `
 try {
   electron_1.contextBridge.exposeInIsolatedWorld(1009, "agyLiquidMonitor", {
-    snapshot: (query) => electron_1.ipcRenderer.invoke("agy-liquid-monitor:snapshot", query)
+    snapshot: (query) => electron_1.ipcRenderer.invoke("agy-liquid-monitor:snapshot", query),
+    saveAppearance: (settings) => electron_1.ipcRenderer.invoke("agy-liquid-monitor:save-appearance", settings)
   });
 } catch {}
 `;

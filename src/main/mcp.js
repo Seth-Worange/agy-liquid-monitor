@@ -3,6 +3,7 @@
 const readline = require('node:readline');
 const { createMonitor } = require('./monitor');
 const { renderPage } = require('./page');
+const { themes, saveAppearance } = require('./preferences');
 const { version } = require('../../package.json');
 
 const monitor = createMonitor();
@@ -15,7 +16,7 @@ const tools = [
     name: 'open_monitor',
     title: 'AGY Liquid Monitor',
     description: 'Open the local Antigravity usage, quota, session and context dashboard.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    inputSchema: { type: 'object', properties: { conversationId: { type: 'string' } }, additionalProperties: false },
     annotations: readOnly,
     _meta: {
       ui: { resourceUri: uri },
@@ -31,6 +32,7 @@ const tools = [
       type: 'object', additionalProperties: false,
       properties: {
         ids: { type: 'array', maxItems: 4, items: { type: 'string' } },
+        fallback: { type: 'boolean' },
         period: { enum: ['7D', '30D', 'ALL'] },
         date: { type: ['string', 'null'] },
         context: { type: 'boolean' },
@@ -38,6 +40,20 @@ const tools = [
       }
     },
     annotations: readOnly,
+    _meta: { ui: { visibility: ['app'] } }
+  },
+  {
+    name: 'monitor_save_appearance',
+    description: 'Save Liquid Monitor appearance settings locally.',
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['theme', 'opacity', 'blurStrength'],
+      properties: {
+        theme: { enum: themes },
+        opacity: { type: 'integer', minimum: 35, maximum: 100 },
+        blurStrength: { type: 'integer', minimum: 0, maximum: 100 }
+      }
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     _meta: { ui: { visibility: ['app'] } }
   }
 ];
@@ -64,7 +80,18 @@ async function handle(method, params = {}) {
       return { contents: [{ uri, mimeType, text: renderPage() }] };
     case 'tools/call':
       if (params.name === 'open_monitor') {
-        return { content: [{ type: 'text', text: 'Liquid Monitor is available in Antigravity App → Plugins.' }] };
+        const id = params.arguments?.conversationId;
+        const conversationId = typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/i.test(id) ? id : null;
+        return { content: [{ type: 'text', text: 'Liquid Monitor is available in Antigravity App → Plugins.' }],
+          structuredContent: { conversationId } };
+      }
+      if (params.name === 'monitor_save_appearance') {
+        try {
+          return { content: [{ type: 'text', text: 'Appearance saved.' }],
+            structuredContent: saveAppearance(params.arguments) };
+        } catch {
+          return { isError: true, content: [{ type: 'text', text: '无法保存外观设置。' }] };
+        }
       }
       if (params.name === 'monitor_snapshot') {
         try {

@@ -6,9 +6,11 @@ const systemTheme = matchMedia('(prefers-color-scheme: light)');
 const demo = document.body.dataset.demo === 'true';
 const framed = window.parent !== window;
 const content = $('#content');
-let state = { view: 'overview', period: '30D', date: null, ids: [] };
+const state = { view: 'overview', period: '30D', date: null, ids: [], sessionSource: 'recent' };
 let result = null;
 let hostTheme = null;
+let hostConversationId = null;
+let paneVisible = true;
 let busy = false;
 let refreshPending = false;
 let forcePending = false;
@@ -16,7 +18,11 @@ let hostConnected = false;
 
 const { overview, sessionView, sessionDetail, contextDetail, agentDetail, quotaView, usageView, escape } = createMonitorViews(state);
 
-const appearance = createAppearance(applyTheme);
+const appearance = createAppearance(applyTheme, demo ? null : async (settings) => {
+  if (!hostConnected) throw new Error('Antigravity is not connected');
+  const response = await request('tools/call', { name: 'monitor_save_appearance', arguments: settings });
+  if (response?.isError || !response?.structuredContent) throw new Error('Cannot save appearance');
+});
 const appearanceButton = $('#appearance');
 const appearancePanel = $('#appearance-panel');
 appearanceButton.querySelector('svg').innerHTML = appearance.icon;
@@ -27,10 +33,19 @@ function applyTheme() {
   appearance.apply(document.documentElement, hostTheme || (systemTheme.matches ? 'light' : 'dark'));
 }
 function applyHostContext(hostContext = {}) {
-  if (hostContext.theme === 'light' || hostContext.theme === 'dark') hostTheme = hostContext.theme;
-  const hostFont = hostContext.styles?.variables?.['--font-sans'];
+  if (hostContext?.theme === 'light' || hostContext?.theme === 'dark') hostTheme = hostContext.theme;
+  const hostFont = hostContext?.styles?.variables?.['--font-sans'];
   if (typeof hostFont === 'string') document.documentElement.style.setProperty('--agy-ui-font', hostFont);
   applyTheme();
+  followConversation(hostContext?.conversationId);
+}
+function followConversation(id) {
+  if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,127}$/i.test(id) || id === hostConversationId) return;
+  hostConversationId = id;
+  if (state.sessionSource === 'manual') return;
+  state.sessionSource = 'host';
+  state.ids = [id];
+  if (hostConnected) void refresh();
 }
 systemTheme.addEventListener('change', applyTheme);
 applyTheme();
@@ -57,6 +72,8 @@ window.addEventListener('message', (event) => {
   if (message.method === 'ui/notifications/host-context-changed') {
     applyHostContext(message.params);
   }
+  if (message.method === 'ui/notifications/tool-input') followConversation(message.params?.arguments?.conversationId);
+  if (message.method === 'ui/notifications/tool-result') followConversation(message.params?.structuredContent?.conversationId);
   if (message.method === 'ui/resource-teardown' && message.id != null) {
     window.parent.postMessage({ jsonrpc: '2.0', id: message.id, result: {} }, '*');
   }
@@ -69,8 +86,15 @@ window.addEventListener('message', (event) => {
 });
 
 function connection(label, status) {
-  $('#connection').textContent = label;
-  $('#connection').dataset.state = status;
+  const node = $('#connection');
+  if (node.textContent !== label) node.textContent = label;
+  if (node.dataset.state !== status) node.dataset.state = status;
+  node.title = status === 'stale' && result ? '保留上次数据 · ' + clock.format(result.updatedAt) : label;
+}
+
+function showContent(html) {
+  renderWithFocus(content, html, () => $('#session-select') || content.querySelector('[aria-pressed="true"]') ||
+    content.querySelector('.heat-cell[tabindex="0"]') || $('.nav [aria-current="page"]'));
 }
 
 function render(data) {
@@ -82,22 +106,25 @@ function render(data) {
     quota: () => quotaView(data.quota),
     usage: () => usageView(data.usage, data.quota.profile)
   };
-  content.innerHTML = views[state.view]();
+  showContent(views[state.view]());
   if (hostConnected) notify('ui/notifications/size-changed', { height: document.documentElement.scrollHeight });
 }
 
-async function readData(query) {
-  if (demo) return window.monitorDemo(query);
-  if (!framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
-  if (!hostConnected) {
+async function readData(force) {
+  if (!demo && !framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
+  if (!demo && !hostConnected) {
     const init = await request('ui/initialize', {
-      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.0' },
+      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.1' },
       appCapabilities: {}, protocolVersion: '2026-01-26'
     });
     applyHostContext(init?.hostContext);
     hostConnected = true;
     notify('ui/notifications/initialized');
   }
+  const query = { ids: state.sessionSource === 'recent' ? [] : state.ids,
+    fallback: state.sessionSource !== 'host', period: state.view === 'overview' ? '30D' : state.period,
+    date: state.view === 'usage' ? state.date : null, context: state.view === 'context', force };
+  if (demo) return window.monitorDemo(query);
   const response = await request('tools/call', { name: 'monitor_snapshot', arguments: query });
   if (response?.isError || !response?.structuredContent) throw new Error('暂时无法读取本地用量。请刷新重试。');
   return response.structuredContent;
@@ -111,13 +138,18 @@ async function refresh(force = false) {
   }
   busy = true;
   content.setAttribute('aria-busy', 'true');
-  const query = { ids: state.ids, period: state.view === 'overview' ? '30D' : state.period,
-    date: state.view === 'usage' ? state.date : null, context: state.view === 'context', force };
+  const checkpoint = appearance.checkpoint();
   try {
-    const data = await readData(query);
+    let data = await readData(force);
     if (refreshPending) return;
+    if (state.sessionSource === 'host' && data.panels[0]?.main.conversationId !== hostConversationId) {
+      data = { ...data, panels: [] };
+    }
     result = data;
-    state.ids = data.panels.map((panel) => panel.main.conversationId);
+    const panelIds = data.panels.map((panel) => panel.main.conversationId);
+    state.ids = state.sessionSource === 'host' && !panelIds.includes(hostConversationId)
+      ? [hostConversationId] : panelIds;
+    appearance.receive(data.appearance, checkpoint);
     render(data);
     if (demo) connection('演示数据', 'demo');
     else if (data.quota.online) connection('已连接', 'online');
@@ -127,8 +159,11 @@ async function refresh(force = false) {
     $('#updated').textContent = `更新于 ${clock.format(data.updatedAt)}`;
     $('#updated').dateTime = new Date(data.updatedAt).toISOString();
   } catch (error) {
-    connection('读取失败', 'error');
-    if (!result) content.innerHTML = `<section class="surface empty">${escape(error.message)}</section>`;
+    connection(result ? '保留旧数据' : '读取失败', result ? 'stale' : 'error');
+    if (!result) showContent(`<section class="surface empty">${escape(error.message)}</section>`);
+    else if (content.querySelector('[data-loading-context]')) {
+      showContent('<section class="surface empty">暂时无法读取上下文，点击右上角刷新重试。</section>');
+    }
   } finally {
     content.setAttribute('aria-busy', 'false');
     busy = false;
@@ -148,7 +183,9 @@ function go(view) {
     if (selected) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   }
-  if (result) render(result);
+  if (view === 'context' && result?.panels.some((panel) => !panel.context)) {
+    showContent('<section class="surface empty" data-loading-context>正在读取上下文…</section>');
+  } else if (result) render(result);
   void refresh();
 }
 
@@ -167,6 +204,7 @@ document.addEventListener('click', (event) => {
     void refresh();
   }
   if (remove) {
+    if (state.sessionSource === 'recent') state.sessionSource = 'manual';
     state.ids = state.ids.filter((id) => id !== remove);
     void refresh();
   }
@@ -179,19 +217,41 @@ document.addEventListener('click', (event) => {
 });
 
 appearancePanel.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && appearance.closeThemeMenu(appearancePanel)) event.stopPropagation();
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (appearance.closeThemeMenu(appearancePanel)) return;
+  appearanceButton.click();
+  appearanceButton.focus();
 });
 
+content.addEventListener('keydown', heatmapKeydown);
 content.addEventListener('change', (event) => {
   const { id, value } = event.target;
-  if (id === 'session-select') state.ids = [value, ...state.ids.slice(1).filter((item) => item !== value)];
-  if (id === 'compare' && value && state.ids.length < 4) state.ids = [...state.ids, value];
+  if (!value) return;
+  if (id === 'session-select') {
+    state.sessionSource = value === hostConversationId ? 'host' : 'manual';
+    state.ids = [value, ...state.ids.slice(1).filter((item) => item !== value)];
+  } else if (id === 'compare' && state.ids.length < 4) {
+    if (state.sessionSource === 'recent') state.sessionSource = 'manual';
+    state.ids = [...state.ids, value];
+  } else return;
   void refresh();
 });
 
-setInterval(() => {
-  if (!demo && !document.hidden && hostConnected && document.hasFocus() && !content.contains(document.activeElement)) {
+function refreshVisiblePane() {
+  if (!demo && paneVisible && !document.hidden && !busy && !document.activeElement?.matches('select')) {
     void refresh();
   }
-}, 20000);
+}
+
+if (framed && !demo) {
+  new IntersectionObserver(([entry]) => {
+    const wasVisible = paneVisible;
+    paneVisible = entry.isIntersecting && entry.intersectionRect.width > 0 && entry.intersectionRect.height > 0;
+    if (paneVisible && !wasVisible) refreshVisiblePane();
+  }).observe(document.documentElement);
+  document.addEventListener('visibilitychange', refreshVisiblePane);
+  setInterval(refreshVisiblePane, 20000);
+}
 void refresh();

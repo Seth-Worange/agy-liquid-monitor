@@ -80,12 +80,13 @@ function createMonitorViews(state) {
   }
 
   function heatmap(days) {
+    const tabDate = days.some((day) => day.dateKey === state.date) ? state.date : days.at(-1)?.dateKey;
     const cells = days.map(({ dateKey, totalTokens, level }) => {
       const label = `${dateKey} · ${exact.format(totalTokens)} Token`;
       return `<button class="heat-cell" data-date="${escape(dateKey)}" data-level="${Number(level) || 0}"
-        aria-label="${escape(label)}" title="${escape(label)}" aria-pressed="${dateKey === state.date}"></button>`;
+        aria-label="${escape(label)}" title="${escape(label)}" aria-pressed="${dateKey === state.date}" tabindex="${dateKey === tabDate ? 0 : -1}"></button>`;
     }).join('');
-    return `<div class="heatmap"><div class="heat-grid">${cells}</div><div class="heat-label meta">
+    return `<div class="heatmap"><div class="heat-grid" role="group" aria-label="活动热力图，可用方向键选择日期">${cells}</div><div class="heat-label meta">
       <span>${escape(days[0]?.dateKey || '')}</span><span>${escape(days.at(-1)?.dateKey || '')}</span></div></div>`;
   }
 
@@ -99,6 +100,7 @@ function createMonitorViews(state) {
     const { usage, panels, quota } = data;
     const panel = panels[0];
     const today = usage.today;
+    const sessionLabel = { host: '当前对话', manual: '已选会话' }[state.sessionSource] || '最近会话';
     const { window5h, window7d } = quota.summaryRings;
     return `<section class="surface overview-hero"><div>
       <p class="eyebrow">今日用量</p><div class="hero-number">${tokens(today.totalTokens)}<small>Token</small></div>
@@ -109,12 +111,12 @@ function createMonitorViews(state) {
         ${metric('输出', tokens(today.outputTokens))}
       </div></div>${chart(usage.heatmap)}</section>
       <div class="summary-grid">
-        <button class="surface summary-card" data-go="session"><h3>当前选择的会话</h3><strong>${tokens(panel?.totalTokens)}</strong>
-          <span class="meta">${modelName(panel?.main.latestModel?.displayName || '暂无会话')} · ${panel ? panel.main.turns : '—'} 轮</span></button>
-        <button class="surface summary-card row" data-go="context"><div><h3>上下文窗口</h3><strong>${percent(panel?.main.waterline.ratio)}</strong>
-          <span class="meta">${tokens(panel?.main.waterline.usedTokens)} / ${tokens(panel?.main.waterline.contextLimit)} Token</span></div>${contextRing(panel)}</button>
         <button class="surface summary-card row" data-go="quota"><div><h3>模型剩余额度</h3><strong>${modelName(window5h?.poolTitle || window7d?.poolTitle || '暂无额度')}</strong>
           <span class="meta">5 小时 / 7 天</span></div><div class="rings">${ring(window5h?.remainingFraction, { label: '5 小时' })}${ring(window7d?.remainingFraction, { label: '7 天', color: 'violet' })}</div></button>
+        <button class="surface summary-card" data-go="session"><h3>${sessionLabel}</h3><strong>${tokens(panel?.totalTokens)}</strong>
+          <span class="meta">${modelName(panel?.main.latestModel?.displayName || '暂无会话')}${panel ? ' · ' + panel.main.turns + ' 轮' : ''}</span></button>
+        <button class="surface summary-card row" data-go="context"><div><h3>上下文窗口</h3><strong>${percent(panel?.main.waterline.ratio)}</strong>
+          <span class="meta">${tokens(panel?.main.waterline.usedTokens)} / ${tokens(panel?.main.waterline.contextLimit)} Token</span></div>${contextRing(panel)}</button>
       </div>
       <div class="overview-lower">
         <section class="surface pane"><div class="section-head"><h2>活动热力图</h2><span class="meta">近 30 天</span></div>${heatmap(usage.heatmap)}</section>
@@ -124,10 +126,12 @@ function createMonitorViews(state) {
 
   function sessionPicker(data) {
     const unselected = data.menu.filter((item) => !state.ids.includes(item.id));
-    const options = (id) => data.menu.map((item) => `<option value="${escape(item.id)}" ${item.id === id ? 'selected' : ''}>${escape(item.title)}</option>`).join('');
+    const options = (id) => (data.menu.some((item) => item.id === id) ? '' :
+      '<option value="" selected disabled>请选择会话</option>') + data.menu.map((item) =>
+      `<option value="${escape(item.id)}" ${item.id === id ? 'selected' : ''}>${escape(item.title)}</option>`).join('');
     return `<div class="surface pane filter-row"><label for="session-select">选择会话</label>
       <select class="select" id="session-select">${options(state.ids[0])}</select>
-      ${state.ids.length < 4 && unselected.length ? `<select class="select" id="compare" aria-label="添加对比会话"><option value="">添加对比会话</option>
+      ${data.panels.length && state.ids.length < 4 && unselected.length ? `<select class="select" id="compare" aria-label="添加对比会话"><option value="">添加对比会话</option>
       ${unselected.map((item) => `<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('')}</select>` : ''}</div>`;
   }
 
@@ -174,7 +178,10 @@ function createMonitorViews(state) {
   }
 
   function sessionView(data, renderPanel) {
-    if (!data.panels.length) return '<section class="surface empty">暂无本地会话。开启一次 Antigravity 对话后刷新。</section>';
+    if (!data.panels.length) {
+      const message = state.sessionSource === 'host' ? '当前对话暂无可读取的会话用量。' : '暂无本地会话。开启一次 Antigravity 对话后刷新。';
+      return (data.menu.length ? sessionPicker(data) : '') + `<section class="surface empty">${message}</section>`;
+    }
     return `<div class="stack">${sessionPicker(data)}<div class="pane-grid ${data.panels.length === 1 ? 'solo' : ''}">
       ${data.panels.map((panel, index) => {
         const model = panel.main.latestModel;
@@ -219,7 +226,7 @@ function createMonitorViews(state) {
         ${metric('日均模型耗时', duration(summary.dailyTimeMs))}
       </div></section>
       <section class="surface pane"><div class="section-head"><h2>活动热力图</h2>
-        ${state.date ? `<button class="subtle-button" data-clear>清除 ${escape(state.date)} 筛选</button>` : '<span class="meta">近 30 天 · 选择日期筛选下方明细</span>'}</div>
+        ${state.date ? `<button class="subtle-button" data-clear>清除 ${escape(state.date)} 筛选</button>` : '<span class="meta">近 30 天 · 日期仅筛选明细</span>'}</div>
         ${heatmap(usage.heatmap)}</section>
       <div class="pane-grid"><section class="surface pane"><h2>模型用量</h2>${modelList(usage.byModel)}</section>
       <section class="surface pane"><h2>会话用量 Top 3</h2>

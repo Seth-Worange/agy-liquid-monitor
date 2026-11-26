@@ -15,6 +15,7 @@ function hudSource() {
   return `(() => {
     const stylesheet = ${JSON.stringify(readStyle() + '\n' + readUI('hud.css'))};
     ${readUI('views.js')}
+    ${readUI('interaction.js')}
     ${readUI('appearance.js')}
     ${readUI('hud.js')}
     mountLiquidMonitor(window.agyLiquidMonitor, stylesheet, ${JSON.stringify(geminiFont())});
