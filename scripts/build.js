@@ -17,7 +17,7 @@ if (path.relative(output, fs.realpathSync(output))) throw new Error('Build direc
 const plugin = path.join(output, manifest.name);
 fs.rmSync(plugin, { recursive: true, force: true });
 fs.mkdirSync(plugin, { recursive: true });
-for (const name of ['src', 'scripts', 'docs', 'plugin.json', 'mcp_config.json', 'package.json', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) {
+for (const name of ['src', 'scripts', 'docs', 'plugin.json', 'mcp_config.json', 'package.json', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) {
   fs.cpSync(path.join(root, name), path.join(plugin, name), { recursive: true });
 }
 fs.writeFileSync(path.join(output, 'dashboard.html'), renderPage({ demo: true }), 'utf8');

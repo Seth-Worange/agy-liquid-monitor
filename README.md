@@ -4,6 +4,8 @@
 
 # AGY Liquid Monitor
 
+**简体中文** · [English](README.en.md)
+
 **Antigravity Desktop 的 Windows / macOS 用量监控插件**
 
 简洁的半透明状态栏，实时查看模型额度、会话 Token、上下文和子代理。
@@ -92,7 +94,6 @@ HUD 会改变应用包中的 `app.asar`，因此运行中的修改版应用不�
 安装 HUD 后，照常点击 Antigravity 内的「更新并重启」。Windows 交给官方 NSIS 安装器，macOS 等待应用自带的 Squirrel 更新器完成替换。Liquid Monitor 随后检查新版本，重装状态栏，再打开 Antigravity。可以用 `npm run hud:check` 查看 `updateHandoff`。
 
 如果新版不兼容，更新后的 Antigravity 会直接打开。手动安装更新或更新入口不匹配时，可以重新运行 `npm run hud:check` 和 `npm run hud:install`。请保留安装 HUD 时使用的 Node.js。最近一次自动更新的结果记录在 Windows 的 `%LOCALAPPDATA%\AGY Liquid Monitor\last-update.log` 或 macOS 的 `~/Library/Application Support/AGY Liquid Monitor/last-update.log`。
-
 
 ### 打开完整看板
 
