@@ -200,3 +200,21 @@ test('session: computeSessionStats tracks 0x, 1x, 3x compaction and checkpoint-o
   assert.equal(cpOnly.compaction.lastBeforeTokens, null);
   assert.equal(cpOnly.compaction.lastAfterTokens, null);
 });
+
+test('a completed checkpoint invalidates the old context reading until a later prompt is measured', () => {
+  const before = { stepIndices: [746], chatModel: { usage: { inputTokens: 2704, cacheReadTokens: 376387 } } };
+  const summary = { stepIndices: [748], chatModel: { usage: { inputTokens: 400000 } } };
+  const after = { stepIndex: 750, inputTokens: 23000, cacheReadTokens: 1000 };
+  const request = { lastCheckpointStep: 748, checkpointCount: 3, contextLimit: 500000, calls: [before, summary] };
+  const waiting = session.computeSessionStats(request);
+  assert.equal(waiting.waterline.awaitingMeasurement, true);
+  assert.equal(waiting.waterline.usedTokens, null);
+  assert.equal(waiting.waterline.ratio, null);
+  assert.equal(waiting.totalTokens, 779091);
+  for (const options of [{ calls: [before, after] }, { storedCalls: [before, after] }]) {
+    const measured = session.computeSessionStats({ ...request, ...options });
+    assert.equal(measured.waterline.usedTokens, 24000);
+    assert.equal(measured.waterline.percent, 5);
+    assert.notEqual(measured.waterline.awaitingMeasurement, true);
+  }
+});

@@ -5,7 +5,7 @@ const path = require('node:path');
 const { CONTEXT_CATEGORIES, computeContextBreakdown } = require('../core/context');
 const { buildQuotaSnapshot, lookupContextLimit } = require('../core/quota');
 const { resolveModelIdentity } = require('../core/pricing');
-const { combineSessionWithSubagents, computeSessionStats, normalizeSubagentStatus } = require('../core/session');
+const { callStepIndex, combineSessionWithSubagents, computeSessionStats, normalizeSubagentStatus } = require('../core/session');
 const { computeUsageReport } = require('../core/usage');
 const { liveHub, readHub } = require('./hub');
 const { readAppearance } = require('./preferences');
@@ -70,7 +70,9 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
   function statsFor(meta, database, calls, configs) {
     const input = {
       conversationId: meta.conversationId, title: meta.title,
-      turns: database?.turns || 0, checkpointCount: database?.checkpointCount || 0, calls
+      turns: database?.turns || 0, checkpointCount: database?.checkpointCount || 0,
+      lastCheckpointStep: database?.lastCheckpointStep, calls,
+      storedCalls: calls === database?.calls ? [] : database?.calls
     };
     const stats = computeSessionStats(input);
     const limit = lookupContextLimit(stats.latestModel, configs);
@@ -132,11 +134,14 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
         });
       let context = null;
       if (query.context === true) {
-        const detailed = (liveContexts?.[index] || []).findLast(({ chatModel }) =>
-          (chatModel.promptSections || chatModel.prompt_sections)?.length ||
-          chatModel.tools?.length || (chatModel.messagePrompts || chatModel.message_prompts)?.length);
+        const detailed = (liveContexts?.[index] || []).findLast((call) => {
+          if (Number.isInteger(database?.lastCheckpointStep) && !(callStepIndex(call) > database.lastCheckpointStep)) return false;
+          const { chatModel } = call;
+          return (chatModel.promptSections || chatModel.prompt_sections)?.length ||
+            chatModel.tools?.length || (chatModel.messagePrompts || chatModel.message_prompts)?.length;
+        });
         let payload = detailed?.chatModel;
-        if (!payload && database) {
+        if (!payload && database && !mainStats.waterline.awaitingMeasurement) {
           try {
             payload = readConversationDb(path.join(dataDir, 'conversations', `${id}.db`),
               { includeContext: true }).contextChatModel;

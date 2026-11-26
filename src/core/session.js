@@ -92,6 +92,13 @@ function extractChatStartInfo(cm, raw) {
   return { startStepIndex, checkpointIndex, truncationReason };
 }
 
+function callStepIndex(raw) {
+  const indices = raw.stepIndices ?? raw.step_indices;
+  return Array.isArray(indices)
+    ? indices.reduce((last, step) => Number.isInteger(step) ? Math.max(last ?? step, step) : last, null)
+    : Number.isInteger(raw.stepIndex) ? raw.stepIndex : null;
+}
+
 function normalizeCall(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const cm = raw.chatModel && typeof raw.chatModel === 'object' ? raw.chatModel : raw;
@@ -112,6 +119,7 @@ function normalizeCall(raw) {
   const chatStart = extractChatStartInfo(cm, raw);
 
   return {
+    stepIndex: callStepIndex(raw),
     timestampMs,
     dateKey,
     modelInput: {
@@ -284,8 +292,16 @@ function computeSessionStats(input = {}) {
   const outputSpeedTps = streamSumMs > 0 ? streamOutputTokens / (streamSumMs / 1000) : null;
 
   const latestValid = validCalls.length > 0 ? validCalls[validCalls.length - 1] : null;
-  const currentContextTokens = latestValid ? latestValid.inputTokens + latestValid.cacheReadTokens : 0;
-  let callMaxContextTokens = latestValid?.maxContextTokens || null;
+  const checkpoint = input.lastCheckpointStep;
+  let measurement = latestValid;
+  if (Number.isInteger(checkpoint)) {
+    const measuredAfter = (call) => call?.stepIndex > checkpoint && call.inputTokens + call.cacheReadTokens > 0;
+    measurement = validCalls.findLast(measuredAfter) ||
+      (input.storedCalls || []).map(normalizeCall).findLast(measuredAfter);
+  }
+  const awaitingMeasurement = Number.isInteger(checkpoint) && !measurement;
+  const currentContextTokens = awaitingMeasurement ? null : measurement ? measurement.inputTokens + measurement.cacheReadTokens : 0;
+  let callMaxContextTokens = measurement?.maxContextTokens || latestValid?.maxContextTokens || null;
   if (!callMaxContextTokens) {
     for (let i = validCalls.length - 1; i >= 0; i--) {
       if (validCalls[i].maxContextTokens) {
@@ -302,6 +318,10 @@ function computeSessionStats(input = {}) {
   const latestModel = latestValid ? resolveModelIdentity(latestValid.modelInput) : primaryModel;
   const cost = calculateSessionCost(validCalls, primaryModel);
   const compaction = computeCompactionInfo(validCalls, input.checkpointCount);
+  const waterline = computeContextWaterline(currentContextTokens, effectiveContextLimit);
+  if (awaitingMeasurement) {
+    Object.assign(waterline, { usedTokens: null, ratio: null, percent: null, level: 'unknown', awaitingMeasurement: true });
+  }
 
   return {
     conversationId: input.conversationId || '',
@@ -318,7 +338,7 @@ function computeSessionStats(input = {}) {
     outputSpeedTps,
     modelTimeMs,
     currentContextTokens,
-    waterline: computeContextWaterline(currentContextTokens, effectiveContextLimit),
+    waterline,
     compaction,
     primaryModel,
     latestModel,
@@ -357,7 +377,7 @@ function combineSessionWithSubagents(mainStats, subagents = []) {
       status,
       modelDisplayName: sub.primaryModel?.displayName || sub.modelDisplayName || 'Unknown',
       totalTokens: tokens,
-      currentContextTokens: toNonNegInt(sub.currentContextTokens),
+      currentContextTokens: sub.waterline?.awaitingMeasurement ? null : toNonNegInt(sub.currentContextTokens),
       waterline: sub.waterline || computeContextWaterline(sub.currentContextTokens || 0, sub.contextLimit ?? null),
       cost: subCost
     };
@@ -390,6 +410,7 @@ module.exports = {
   parseDurationMsInput,
   toLocalDateKey,
   normalizeCall,
+  callStepIndex,
   isValidCall,
   pickFirstValidModel,
   normalizeSubagentStatus,

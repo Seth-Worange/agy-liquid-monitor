@@ -59,6 +59,9 @@ function buildConversationFixture(dbPath, { wal = false, inputTokens = 1000 } = 
   db.prepare('INSERT INTO steps (idx, step_type, status, metadata, error_details) VALUES (?, ?, ?, ?, ?)').run(
     2, 23, 3, stepMeta, null
   );
+  db.prepare('INSERT INTO steps (idx, step_type, status, metadata, error_details) VALUES (?, ?, ?, ?, ?)').run(
+    3, 15, 3, stepMeta, null
+  );
 
   const csmBuf = Buffer.concat([
     fVarint(1, 2),
@@ -76,7 +79,7 @@ function buildConversationFixture(dbPath, { wal = false, inputTokens = 1000 } = 
     fBytes(16, Buffer.concat([fBytes(1, 'identity'), fBytes(2, 'hello world'), fVarint(6, 1)])),
     fBytes(2, Buffer.concat([fVarint(2, 1), fVarint(4, 1000)]))
   ]);
-  const gmBuf = Buffer.concat([fBytes(1, cmBuf), fBytes(2, encodeVarint(1))]);
+  const gmBuf = Buffer.concat([fBytes(1, cmBuf), fBytes(2, encodeVarint(3))]);
   db.prepare('INSERT INTO gen_metadata (idx, data, size) VALUES (?, ?, ?)').run(0, gmBuf, 0);
   db.close();
 }

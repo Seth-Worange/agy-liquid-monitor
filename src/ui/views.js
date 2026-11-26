@@ -51,6 +51,7 @@ function createMonitorViews(state) {
 
   function contextRing(panel, big = false) {
     const water = panel?.main.waterline;
+    if (water?.awaitingMeasurement) return ring(null, { label: '上下文待测量', big });
     const count = panel?.main.compaction?.count;
     const color = { green: 'green', orange: 'amber', red: 'red' }[water?.level] || 'blue';
     return ring(water?.ratio, {
@@ -115,8 +116,9 @@ function createMonitorViews(state) {
           <span class="meta">5 小时 / 7 天</span></div><div class="rings">${ring(window5h?.remainingFraction, { label: '5 小时' })}${ring(window7d?.remainingFraction, { label: '7 天', color: 'violet' })}</div></button>
         <button class="surface summary-card" data-go="session"><h3>${sessionLabel}</h3><strong>${tokens(panel?.totalTokens)}</strong>
           <span class="meta">${modelName(panel?.main.latestModel?.displayName || '暂无会话')}${panel ? ' · ' + panel.main.turns + ' 轮' : ''}</span></button>
-        <button class="surface summary-card row" data-go="context"><div><h3>上下文窗口</h3><strong>${percent(panel?.main.waterline.ratio)}</strong>
-          <span class="meta">${tokens(panel?.main.waterline.usedTokens)} / ${tokens(panel?.main.waterline.contextLimit)} Token</span></div>${contextRing(panel)}</button>
+        <button class="surface summary-card row" data-go="context"><div><h3>上下文窗口</h3><strong>${panel?.main.waterline.awaitingMeasurement ? '待测量' : percent(panel?.main.waterline.ratio)}</strong>
+          <span class="meta">${panel?.main.waterline.awaitingMeasurement ? '已压缩，等待下一次模型调用' :
+            `${tokens(panel?.main.waterline.usedTokens)} / ${tokens(panel?.main.waterline.contextLimit)} Token`}</span></div>${contextRing(panel)}</button>
       </div>
       <div class="overview-lower">
         <section class="surface pane"><div class="section-head"><h2>活动热力图</h2><span class="meta">近 30 天</span></div>${heatmap(usage.heatmap)}</section>
@@ -155,6 +157,9 @@ function createMonitorViews(state) {
   function contextDetail(panel) {
     const { main, context } = panel;
     const { waterline, compaction } = main;
+    if (waterline.awaitingMeasurement) {
+      return '<p class="eyebrow">上下文窗口 · 待测量</p><p class="note small-metrics">已完成压缩。Antigravity 会在下一次模型调用后提供新的上下文用量。</p>';
+    }
     return `<div class="row"><div><p class="eyebrow">上下文窗口占用</p><div class="metric small-metrics">
       <strong>${tokens(waterline.usedTokens)} / ${tokens(waterline.contextLimit)}</strong><p class="meta">Token · ${percent(waterline.ratio)}</p>
       </div></div>${contextRing(panel, true)}</div>

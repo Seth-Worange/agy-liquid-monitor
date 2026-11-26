@@ -84,8 +84,9 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const color = { green: 'green', orange: 'amber', red: 'red' }[water?.level] || 'blue';
     const values = {
       session: [icon('session'), '会话', views.tokens(panel?.totalTokens)],
-      context: [water ? miniRing(water.ratio, color) : icon('context'), '上下文',
-        views.percent(water?.ratio) + (panel?.main.compaction.count ? ` · ${panel.main.compaction.count}×` : '')],
+      context: [water?.ratio != null ? miniRing(water.ratio, color) : icon('context'), '上下文',
+        water?.awaitingMeasurement ? '待测量' :
+          views.percent(water?.ratio) + (panel?.main.compaction.count ? ` · ${panel.main.compaction.count}×` : '')],
       agents: [icon('agents'), '子代理', agents?.totalCount ? `${agents.runningCount}/${agents.totalCount}` : panel ? '0' : '—'],
       usage: [icon('usage'), '今日', views.tokens(result?.usage.today.totalTokens)]
     };

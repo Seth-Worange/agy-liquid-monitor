@@ -11,6 +11,7 @@ const { resolveModelIdentity } = require('../core/pricing');
 const { computeContextBreakdown } = require('../core/context');
 const {
   toLocalDateKey,
+  callStepIndex,
   pickFirstValidModel,
   normalizeSubagentStatus
 } = require('../core/session');
@@ -158,6 +159,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
 
     let turns = 0;
     let checkpointCount = 0;
+    let lastCheckpointStep = null;
     let errorStepCount = 0;
     let lastStepHasError = false;
     const stepTimeByIdx = new Map();
@@ -168,6 +170,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
       if (stepType === 14) turns++;
       if (stepType === 23) checkpointCount++;
       const hasErr = Boolean(s.error_details && s.error_details.length > 0);
+      if (stepType === 23 && Number(s.status) === 3 && !hasErr) lastCheckpointStep = s.idx;
       if (hasErr) errorStepCount++;
       if (i === stepRows.length - 1) lastStepHasError = hasErr;
       if (s.metadata) {
@@ -187,7 +190,8 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
       const cm = parsed.chatModel;
       if (!cm) continue;
 
-      if (cm.hasContextPayload) lastContextGmIdx = gm.idx;
+      const stepIndex = callStepIndex(parsed);
+      if (cm.hasContextPayload && (lastCheckpointStep === null || stepIndex > lastCheckpointStep)) lastContextGmIdx = gm.idx;
 
       let timestampMs = null;
       for (const si of parsed.stepIndices) {
@@ -201,6 +205,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
 
       calls.push({
         idx: gm.idx,
+        stepIndex,
         timestampMs,
         dateKey: timestampMs !== null ? toLocalDateKey(timestampMs) : null,
         modelNum: cm.modelNum,
@@ -233,6 +238,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
     return {
       turns,
       checkpointCount,
+      lastCheckpointStep,
       errorStepCount,
       lastStepHasError,
       calls,
@@ -336,6 +342,7 @@ function scanConversationsIncremental({ dataDir = DEFAULT_DATA_DIR, entries = ne
       errorStepCount: dbData.errorStepCount || 0,
       lastStepHasError: Boolean(dbData.lastStepHasError),
       checkpointCount: dbData.checkpointCount || 0,
+      lastCheckpointStep: dbData.lastCheckpointStep ?? null,
       primaryModel,
       calls
     });
