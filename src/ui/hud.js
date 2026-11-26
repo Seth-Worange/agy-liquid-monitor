@@ -70,6 +70,8 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   document.body.append(portal.el);
   const popover = portal.root.querySelector('.hud-popover');
   const detail = portal.root.querySelector('.hud-detail');
+  const refreshButton = portal.root.querySelector('[data-refresh]');
+  const refreshFeedback = createRefreshFeedback(refreshButton);
 
   function miniRing(value, color = 'cyan') {
     const fraction = Number.isFinite(value) ? Math.min(100, Math.max(0, value * 100)) : 0;
@@ -246,7 +248,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     portal.el.style.fontFamily = getComputedStyle(bar.el).fontFamily;
     popover.dataset.popover = section;
     portal.root.querySelector('#hud-title').textContent = labels[section];
-    portal.root.querySelector('[data-refresh]').hidden = section === 'appearance';
+    refreshButton.hidden = section === 'appearance';
     if (section === 'appearance') {
       portal.root.querySelector('.hud-subtitle').textContent = '';
       renderedContent.delete(detail);
@@ -305,7 +307,9 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         paintBars();
         renderPanel();
       }
+      if (force) refreshFeedback.finish(true);
     } catch {
+      if (force) refreshFeedback.finish(false);
       if (open && open.section !== 'appearance' && !result) {
         renderWithFocus(detail, '<p class="note">暂时无法读取数据。可点击刷新重试。</p>');
       }
@@ -324,7 +328,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const button = event.target.closest('button');
     if (!button) return;
     if (button.hasAttribute('data-close')) closePanel();
-    else if (button.hasAttribute('data-refresh')) void refresh(true);
+    else if (button === refreshButton && refreshFeedback.begin()) void refresh(true);
     else if (button.dataset.period || button.dataset.date || button.hasAttribute('data-clear')) {
       if (button.dataset.period) state.period = button.dataset.period;
       state.date = state.date === button.dataset.date ? null : button.dataset.date || null;

@@ -82,9 +82,12 @@ function createMonitorViews(state) {
 
   function heatmap(days) {
     const tabDate = days.some((day) => day.dateKey === state.date) ? state.date : days.at(-1)?.dateKey;
-    const cells = days.map(({ dateKey, totalTokens, level }) => {
+    const peak = Math.max(0, ...days.map((day) => day.totalTokens));
+    const cells = days.map(({ dateKey, totalTokens }) => {
       const label = `${dateKey} · ${exact.format(totalTokens)} Token`;
-      return `<button class="heat-cell" data-date="${escape(dateKey)}" data-level="${Number(level) || 0}"
+      // Give smaller days more room in the color scale, even when one day is unusually busy.
+      const fill = totalTokens > 0 && peak > 0 ? (24 + 76 * Math.sqrt(totalTokens / peak)).toFixed(2) + '%' : null;
+      return `<button class="heat-cell" data-date="${escape(dateKey)}"${fill ? ` style="--heat-fill:${fill}"` : ''}
         aria-label="${escape(label)}" title="${escape(label)}" aria-pressed="${dateKey === state.date}" tabindex="${dateKey === tabDate ? 0 : -1}"></button>`;
     }).join('');
     return `<div class="heatmap"><div class="heat-grid" role="group" aria-label="活动热力图，可用方向键选择日期">${cells}</div><div class="heat-label meta">
@@ -167,7 +170,6 @@ function createMonitorViews(state) {
         ? `已压缩 ${compaction.count} 次${compaction.lastBeforeTokens != null && compaction.lastAfterTokens != null
           ? ` · 最近一次 ${tokens(compaction.lastBeforeTokens)} → ${tokens(compaction.lastAfterTokens)} Token` : ''}`
         : '未记录到上下文压缩。'}</p>
-      ${compaction.lastTruncationReason ? `<p class="note">${escape(compaction.lastTruncationReason)}</p>` : ''}
       <div class="section-head small-metrics"><h3>占用构成</h3><span class="meta">按内容估算</span></div>
       ${context?.breakdownAvailable ? `<div class="lines">${context.categories.map((item, index) =>
         line(categories[item.key] || item.label, `${tokens(item.tokens)} · ${percent(item.ratio)}`, item.ratio, contextColors[index])).join('')}</div>`

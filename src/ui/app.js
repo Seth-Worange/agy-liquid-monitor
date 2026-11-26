@@ -25,6 +25,8 @@ const appearance = createAppearance(applyTheme, demo ? null : async (settings) =
 });
 const appearanceButton = $('#appearance');
 const appearancePanel = $('#appearance-panel');
+const refreshButton = $('#refresh');
+const refreshFeedback = createRefreshFeedback(refreshButton);
 appearanceButton.querySelector('svg').innerHTML = appearance.icon;
 appearancePanel.innerHTML = appearance.markup;
 appearance.bind(appearancePanel);
@@ -141,7 +143,10 @@ async function refresh(force = false) {
   const checkpoint = appearance.checkpoint();
   try {
     let data = await readData(force);
-    if (refreshPending) return;
+    if (refreshPending) {
+      forcePending ||= force;
+      return;
+    }
     if (state.sessionSource === 'host' && data.panels[0]?.main.conversationId !== hostConversationId) {
       data = { ...data, panels: [] };
     }
@@ -158,7 +163,9 @@ async function refresh(force = false) {
       `数据来源 · ${data.sources.databases} 个本地会话库${data.sources.errors ? ` · ${data.sources.errors} 个读取失败` : ''}`;
     $('#updated').textContent = `更新于 ${clock.format(data.updatedAt)}`;
     $('#updated').dateTime = new Date(data.updatedAt).toISOString();
+    if (force) refreshFeedback.finish(true);
   } catch (error) {
+    if (force) refreshFeedback.finish(false);
     connection(result ? '保留旧数据' : '读取失败', result ? 'stale' : 'error');
     if (!result) showContent(`<section class="surface empty">${escape(error.message)}</section>`);
     else if (content.querySelector('[data-loading-context]')) {
@@ -208,7 +215,7 @@ document.addEventListener('click', (event) => {
     state.ids = state.ids.filter((id) => id !== remove);
     void refresh();
   }
-  if (button.id === 'refresh') void refresh(true);
+  if (button === refreshButton && refreshFeedback.begin()) void refresh(true);
   if (button === appearanceButton) {
     appearancePanel.hidden = !appearancePanel.hidden;
     appearanceButton.setAttribute('aria-expanded', String(!appearancePanel.hidden));

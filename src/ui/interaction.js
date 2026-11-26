@@ -1,5 +1,44 @@
 const renderedContent = new WeakMap();
 
+function createRefreshFeedback(button) {
+  const icon = button.querySelector('svg');
+  const original = { viewBox: icon.getAttribute('viewBox'), paths: icon.innerHTML, title: button.title };
+  const status = document.createElement('span');
+  status.className = 'visually-hidden';
+  status.setAttribute('role', 'status');
+  button.after(status);
+  let resetTimer;
+
+  function reset() {
+    delete button.dataset.refreshState;
+    button.title = original.title;
+    status.textContent = '';
+    icon.setAttribute('viewBox', original.viewBox);
+    icon.innerHTML = original.paths;
+  }
+
+  return {
+    begin() {
+      if (button.dataset.refreshState === 'loading') return false;
+      clearTimeout(resetTimer);
+      reset();
+      button.dataset.refreshState = 'loading';
+      button.setAttribute('aria-disabled', 'true');
+      button.title = status.textContent = '正在刷新数据';
+      return true;
+    },
+    finish(success) {
+      if (button.dataset.refreshState !== 'loading') return;
+      button.removeAttribute('aria-disabled');
+      button.dataset.refreshState = success ? 'success' : 'error';
+      icon.setAttribute('viewBox', '0 0 16 16');
+      icon.innerHTML = success ? '<path d="m3 8 3 3 7-7"/>' : '<path d="M8 3v6m0 3v.25"/>';
+      button.title = status.textContent = success ? '刷新成功' : '刷新失败，点击重试';
+      resetTimer = setTimeout(reset, success ? 1200 : 2400);
+    }
+  };
+}
+
 function setHeatmapFocus(cell) {
   const grid = cell.closest('.heat-grid');
   grid.querySelector('[tabindex="0"]')?.setAttribute('tabindex', '-1');

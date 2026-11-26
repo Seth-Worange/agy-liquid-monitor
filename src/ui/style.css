@@ -140,6 +140,9 @@ h1, h2, h3 { font-weight: 600; }
 .icon-button { display: grid; place-items: center; width: 38px; height: 38px; }
 .icon-button svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 .icon-button:hover, .subtle-button:hover { background: var(--glass-strong); }
+.icon-button[data-refresh-state="loading"] { cursor: progress; }
+.icon-button[data-refresh-state="success"] { color: var(--green); }
+.icon-button[data-refresh-state="error"] { color: var(--red); }
 .nav, .segmented {
   display: flex;
   align-items: center;
@@ -292,10 +295,9 @@ h1, h2, h3 { font-weight: 600; }
   border-radius: 4px;
   background: var(--track);
 }
-.heat-cell[data-level="1"] { background: color-mix(in srgb, var(--blue) 32%, transparent); }
-.heat-cell[data-level="2"] { background: color-mix(in srgb, var(--blue) 57%, transparent); }
-.heat-cell[data-level="3"] { background: color-mix(in srgb, var(--cyan) 78%, transparent); }
-.heat-cell[data-level="4"] { background: var(--cyan); }
+.heat-cell[style] {
+  background: color-mix(in oklab, var(--cyan) var(--heat-fill), var(--glass-tint));
+}
 .heat-cell:hover, .heat-cell[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
 .heat-label { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .lines { display: grid; gap: 14px; margin-top: 15px; }
@@ -384,6 +386,13 @@ footer { justify-content: space-between; margin-top: 19px; color: var(--quiet); 
 }
 @media (prefers-reduced-motion: no-preference) {
   button { transition: background-color .15s, border-color .15s, color .15s; }
+  [data-refresh-state="loading"] svg { animation: refresh-spin .8s linear infinite; }
+  [data-refresh-state="success"] svg { animation: refresh-confirm .18s ease-out both; }
+  @keyframes refresh-spin { to { transform: rotate(360deg); } }
+  @keyframes refresh-confirm {
+    from { opacity: .5; transform: scale(.7); }
+    to { opacity: 1; transform: scale(1); }
+  }
   .appearance-theme summary svg { transition: transform .16s ease; }
   .appearance-panel:not([hidden]), .appearance-theme[open] .appearance-options {
     animation: appearance-enter .16s ease-out both;
