@@ -352,9 +352,13 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   window.addEventListener('popstate', schedule);
   window.navigation?.addEventListener('navigatesuccess', schedule);
   systemTheme.addEventListener('change', schedule);
-  setInterval(() => {
+  function refreshWhenVisible() {
     if (!document.hidden) void refresh();
-  }, 12000);
+  }
+  // The renderer may throttle timers while the window is minimized.
+  document.addEventListener('visibilitychange', refreshWhenVisible);
+  window.addEventListener('focus', refreshWhenVisible);
+  setInterval(refreshWhenVisible, 12000);
   placeBars();
   if (!pending) void refresh();
 }

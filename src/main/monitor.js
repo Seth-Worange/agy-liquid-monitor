@@ -11,6 +11,8 @@ const { liveHub, readHub } = require('./hub');
 const { DEFAULT_DATA_DIR, scanConversationsIncremental, readConversationDb } = require('./sqlite-reader');
 
 const sessionId = /^[a-z0-9][a-z0-9-]{0,127}$/i;
+// Expire quota before the HUD's next 12-second poll, while deduplicating nearby requests.
+const accountMaxAgeMs = 10000;
 
 function createMonitor(dataDir = DEFAULT_DATA_DIR) {
   const entries = new Map();
@@ -33,7 +35,7 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
       return null;
     }
     const key = `${hub.pid}:${hub.port}:${hub.modified}`;
-    if (!force && account?.key === key && Date.now() - account.at < 120000) return account;
+    if (!force && account?.key === key && Date.now() - account.at < accountMaxAgeMs) return account;
     if (fetchingAccount?.key === key) return fetchingAccount.promise;
     const promise = (async () => {
       const [quotaSummary, userStatus] = await Promise.allSettled([
