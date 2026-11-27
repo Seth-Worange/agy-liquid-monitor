@@ -29,6 +29,9 @@ function demoData(nowMs = Date.now()) {
       }];
     })
   }));
+  const older = new Date(nowMs);
+  older.setDate(older.getDate() - 63);
+  sessions[1].calls.unshift({ ...sessions[1].calls[0], timestampMs: older.getTime(), cacheReadTokens: 120000 });
   sessions[0].calls.at(-1).startStepIndex = 42;
   sessions[0].calls.at(-2).cacheReadTokens += 245000;
   const panels = sessions.map((sess, index) => {
@@ -71,9 +74,10 @@ function demoData(nowMs = Date.now()) {
   });
   const reports = Object.fromEntries(['7D', '30D', 'ALL'].map((period) =>
     [period, computeUsageReport(sessions, { period, nowMs })]));
-  const days = Object.fromEntries(reports['30D'].heatmap.map(({ dateKey }) => {
-    const { byModel, topSessions } = computeUsageReport(sessions, { period: '30D', nowMs, selectedDateKey: dateKey });
-    return [dateKey, { byModel, topSessions }];
+  const days = Object.fromEntries(reports.ALL.heatmap.map(({ dateKey }) => {
+    const { byModel, topSessions, selectedDay, selectedDateKey } =
+      computeUsageReport(sessions, { period: 'ALL', nowMs, selectedDateKey: dateKey });
+    return [dateKey, { byModel, topSessions, selectedDay, selectedDateKey }];
   }));
   return {
     reports, days, panels,

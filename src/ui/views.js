@@ -80,15 +80,15 @@ function createMonitorViews(state) {
       </svg></figure>`;
   }
 
-  function heatmap(days) {
-    const tabDate = days.some((day) => day.dateKey === state.date) ? state.date : days.at(-1)?.dateKey;
-    const peak = Math.max(0, ...days.map((day) => day.totalTokens));
+  function heatmap(days, { selected = null, allDays = days } = {}) {
+    const tabDate = days.some((day) => day.dateKey === selected) ? selected : days.at(-1)?.dateKey;
+    const totals = [...new Set(allDays.map((day) => day.totalTokens).filter((value) => value > 0))].sort((a, b) => a - b);
+    const colors = new Map(totals.map((value, index) => [value,
+      totals.length === 1 ? 5 : 1 + Math.round(4 * index / (totals.length - 1))]));
     const cells = days.map(({ dateKey, totalTokens }) => {
       const label = `${dateKey} · ${exact.format(totalTokens)} Token`;
-      // Give smaller days more room in the color scale, even when one day is unusually busy.
-      const fill = totalTokens > 0 && peak > 0 ? (24 + 76 * Math.sqrt(totalTokens / peak)).toFixed(2) + '%' : null;
-      return `<button class="heat-cell" data-date="${escape(dateKey)}"${fill ? ` style="--heat-fill:${fill}"` : ''}
-        aria-label="${escape(label)}" title="${escape(label)}" aria-pressed="${dateKey === state.date}" tabindex="${dateKey === tabDate ? 0 : -1}"></button>`;
+      return `<button class="heat-cell" data-date="${escape(dateKey)}" data-heat-color="${colors.get(totalTokens) || 0}"
+        aria-label="${escape(label)}" title="${escape(label)}" aria-pressed="${dateKey === selected}" tabindex="${dateKey === tabDate ? 0 : -1}"></button>`;
     }).join('');
     return `<div class="heatmap"><div class="heat-grid" role="group" aria-label="活动热力图，可用方向键选择日期">${cells}</div><div class="heat-label meta">
       <span>${escape(days[0]?.dateKey || '')}</span><span>${escape(days.at(-1)?.dateKey || '')}</span></div></div>`;
@@ -219,24 +219,40 @@ function createMonitorViews(state) {
   }
 
   function usageView(usage, profile) {
-    const { summary, topSessions } = usage;
+    const { summary, topSessions, selectedDay } = usage;
     const periods = [['7D', '7 天'], ['30D', '30 天'], ['ALL', '全部']];
+    const rangeLabel = `${usage.range.startKey} – ${usage.range.endKey}`;
+    const scope = selectedDay?.dateKey || rangeLabel;
+    const pageSize = 42;
+    const pageCount = Math.max(1, Math.ceil(usage.heatmap.length / pageSize));
+    const page = Math.min(state.heatPage || 0, pageCount - 1);
+    const end = usage.heatmap.length - page * pageSize;
+    const days = usage.heatmap.slice(Math.max(0, end - pageSize), end);
+    const paging = pageCount > 1 ? `<div class="heat-paging" role="group" aria-label="热力图日期翻页">
+      <button type="button" class="subtle-button" data-heat-page="1" aria-label="较早日期" ${page === pageCount - 1 ? 'disabled' : ''}>‹</button>
+      <button type="button" class="subtle-button" data-heat-page="-1" aria-label="较近日期" ${page === 0 ? 'disabled' : ''}>›</button>
+    </div>` : '';
+    const metrics = selectedDay ? [
+      ['当日 Token', tokens(selectedDay.totalTokens)],
+      ['预估 API 费用', estimate(selectedDay.costUsd, selectedDay.hasUnpriced)],
+      ['输入', tokens(selectedDay.inputTokens)], ['输出', tokens(selectedDay.outputTokens)],
+      ['模型耗时', duration(selectedDay.modelTimeMs)]
+    ] : [
+      ['总 Token', tokens(summary.tokens)], ['预估 API 费用', estimate(summary.estUsd, summary.hasUnpriced)],
+      ['活跃日均 Token', tokens(summary.dailyAvgTokens)], ['单会话平均 Token', tokens(summary.avgPerChatTokens)],
+      ['日均模型耗时', duration(summary.dailyTimeMs)]
+    ];
     return `<div class="stack"><section class="surface pane"><div class="section-head"><div><h2>历史用量</h2>
-      <p class="meta">${escape([profile.name, profile.planFullName, `${usage.range.startKey} – ${usage.range.endKey}`].filter(Boolean).join(' · '))}</p></div>
+      <p class="meta">${escape([profile.name, profile.planFullName, rangeLabel].filter(Boolean).join(' · '))}</p></div>
       <div class="segmented" role="group" aria-label="统计周期">${periods.map(([value, label]) =>
-        `<button data-period="${value}" class="${state.period === value ? 'selected' : ''}" aria-pressed="${state.period === value}">${label}</button>`).join('')}</div></div>
-      <div class="metrics small-metrics">
-        ${metric('总 Token', tokens(summary.tokens))}
-        ${metric('预估 API 费用', estimate(summary.estUsd, summary.hasUnpriced))}
-        ${metric('活跃日均 Token', tokens(summary.dailyAvgTokens))}
-        ${metric('单会话平均 Token', tokens(summary.avgPerChatTokens))}
-        ${metric('日均模型耗时', duration(summary.dailyTimeMs))}
-      </div></section>
+        `<button data-period="${value}" class="${usage.period === value ? 'selected' : ''}" aria-pressed="${usage.period === value}">${label}</button>`).join('')}</div></div>
+      ${selectedDay ? `<p class="meta small-metrics">已选日期 · ${escape(scope)}</p>` : ''}
+      <div class="metrics small-metrics">${metrics.map(([label, value]) => metric(label, value)).join('')}</div></section>
       <section class="surface pane"><div class="section-head"><h2>活动热力图</h2>
-        ${state.date ? `<button class="subtle-button" data-clear>清除 ${escape(state.date)} 筛选</button>` : '<span class="meta">近 30 天 · 日期仅筛选明细</span>'}</div>
-        ${heatmap(usage.heatmap)}</section>
-      <div class="pane-grid"><section class="surface pane"><h2>模型用量</h2>${modelList(usage.byModel)}</section>
-      <section class="surface pane"><h2>会话用量 Top 3</h2>
+        <div class="heat-controls">${selectedDay ? `<button class="subtle-button" data-clear>清除日期</button>` : ''}${paging}</div></div>
+        ${heatmap(days, { selected: selectedDay?.dateKey, allDays: usage.heatmap })}</section>
+      <div class="pane-grid"><section class="surface pane"><h2>模型用量</h2><p class="meta">${escape(scope)}</p>${modelList(usage.byModel)}</section>
+      <section class="surface pane"><h2>会话用量 Top 3</h2><p class="meta">${escape(scope)}</p>
         ${topSessions.length ? `<div class="sessions">${topSessions.map((session) =>
           `<div class="row session-row"><div><h3>${escape(session.title)}</h3><p class="meta">${modelName(session.primaryModel?.displayName || '')}</p></div>
            <span class="line-value">${tokens(session.totalTokens)} Token</span></div>`).join('')}</div>`

@@ -65,13 +65,13 @@ function renderWithFocus(root, html, fallback) {
   if (renderedContent.get(root) === html) return;
   const active = root.getRootNode().activeElement;
   const wasFocused = root.contains(active);
-  const key = wasFocused && ['id', 'data-date', 'data-period', 'data-remove', 'data-go', 'data-clear']
+  const key = wasFocused && ['id', 'data-date', 'data-period', 'data-heat-page', 'data-remove', 'data-go', 'data-clear']
     .find((name) => active.hasAttribute(name));
   const value = key && active.getAttribute(key);
   root.innerHTML = html;
   renderedContent.set(root, html);
   if (!wasFocused) return;
-  const match = key && [...root.querySelectorAll(`[${key}]`)].find((element) => element.getAttribute(key) === value);
+  const match = key && [...root.querySelectorAll(`[${key}]`)].find((element) => !element.disabled && element.getAttribute(key) === value);
   const next = match || fallback?.();
   if (next?.matches('.heat-cell')) setHeatmapFocus(next);
   next?.focus({ preventScroll: true });

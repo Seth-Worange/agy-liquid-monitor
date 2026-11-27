@@ -41,7 +41,7 @@ test('the MCP server exposes the dashboard and an offline, read-only snapshot', 
   assert.doesNotMatch(page.text, /data-demo="true"/);
   const data = results.get(3).result.structuredContent;
   assert.equal(data.usage.period, '7D');
-  assert.equal(data.usage.heatmap.length, 30);
+  assert.equal(data.usage.heatmap.length, 7);
   assert.equal(data.sources.present, false);
   assert.equal(data.quota.online, false);
   assert.equal(data.appearance, null);

@@ -7,7 +7,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     void new FontFace('AGY Gemini', bytes, { weight: '500 650' }).load()
       .then((font) => document.fonts.add(font)).catch(() => {});
   }
-  const state = { period: '30D', date: null };
+  const state = { period: '30D', date: null, heatPage: 0 };
   const views = createMonitorViews(state);
   const appearance = createAppearance(applyAppearance, api.saveAppearance && ((settings) => api.saveAppearance(settings)));
   const labels = { session: '会话', context: '上下文', agents: '子代理', quota: '模型额度', usage: '历史用量', appearance: '外观设置' };
@@ -329,8 +329,14 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     if (!button) return;
     if (button.hasAttribute('data-close')) closePanel();
     else if (button === refreshButton && refreshFeedback.begin()) void refresh(true);
-    else if (button.dataset.period || button.dataset.date || button.hasAttribute('data-clear')) {
-      if (button.dataset.period) state.period = button.dataset.period;
+    else if (button.dataset.heatPage && result) {
+      state.heatPage = Math.max(0, state.heatPage + Number(button.dataset.heatPage));
+      renderPanel();
+    } else if (button.dataset.period || button.dataset.date || button.hasAttribute('data-clear')) {
+      if (button.dataset.period && button.dataset.period !== state.period) {
+        state.period = button.dataset.period;
+        state.heatPage = 0;
+      }
       state.date = state.date === button.dataset.date ? null : button.dataset.date || null;
       revision++;
       void refresh();

@@ -295,9 +295,18 @@ h1, h2, h3 { font-weight: 600; }
   border-radius: 4px;
   background: var(--track);
 }
-.heat-cell[style] {
+.heat-cell[data-heat-color="1"] { --heat-fill: 22%; }
+.heat-cell[data-heat-color="2"] { --heat-fill: 41%; }
+.heat-cell[data-heat-color="3"] { --heat-fill: 61%; }
+.heat-cell[data-heat-color="4"] { --heat-fill: 81%; }
+.heat-cell[data-heat-color="5"] { --heat-fill: 100%; }
+.heat-cell:not([data-heat-color="0"]) {
   background: color-mix(in oklab, var(--cyan) var(--heat-fill), var(--glass-tint));
+  border-color: color-mix(in srgb, var(--cyan) 38%, var(--edge));
 }
+.heat-controls, .heat-paging { display: flex; align-items: center; gap: 4px; }
+.heat-paging button { min-width: 26px; padding: 3px 6px; }
+.heat-paging button:disabled { cursor: default; }
 .heat-cell:hover, .heat-cell[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
 .heat-label { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .lines { display: grid; gap: 14px; margin-top: 15px; }

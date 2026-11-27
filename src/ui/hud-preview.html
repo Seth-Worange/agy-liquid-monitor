@@ -46,7 +46,8 @@
     window.agyLiquidMonitor = { snapshot: async ({ ids, period, date }) => ({
       panels: fixture.panels.filter(({ main }) => ids.includes(main.conversationId)),
       quota: fixture.quota,
-      usage: { ...fixture.reports[period], ...fixture.days[date] }
+      usage: { ...fixture.reports[period],
+        ...(fixture.reports[period].heatmap.some((day) => day.dateKey === date) ? fixture.days[date] : {}) }
     }) };
     if (new URLSearchParams(location.search).get('theme') === 'light') document.documentElement.dataset.theme = 'light';
     document.querySelector('#toggle-theme').addEventListener('click', () => {

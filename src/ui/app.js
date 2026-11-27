@@ -6,7 +6,7 @@ const systemTheme = matchMedia('(prefers-color-scheme: light)');
 const demo = document.body.dataset.demo === 'true';
 const framed = window.parent !== window;
 const content = $('#content');
-const state = { view: 'overview', period: '30D', date: null, ids: [], sessionSource: 'recent' };
+const state = { view: 'overview', period: '30D', date: null, heatPage: 0, ids: [], sessionSource: 'recent' };
 let result = null;
 let hostTheme = null;
 let hostConversationId = null;
@@ -116,7 +116,7 @@ async function readData(force) {
   if (!demo && !framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
   if (!demo && !hostConnected) {
     const init = await request('ui/initialize', {
-      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.2' },
+      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.3' },
       appCapabilities: {}, protocolVersion: '2026-01-26'
     });
     applyHostContext(init?.hostContext);
@@ -202,13 +202,27 @@ document.addEventListener('click', (event) => {
   const { view, go: destination, date, period, remove } = button.dataset;
   if (view || destination) go(view || destination);
   if (date) {
-    state.date = state.date === date ? null : date;
-    go('usage');
+    if (state.view !== 'usage') {
+      state.period = '30D';
+      state.heatPage = 0;
+      state.date = date;
+      go('usage');
+    } else {
+      state.date = state.date === date ? null : date;
+      void refresh();
+    }
   }
   if (period || button.hasAttribute('data-clear')) {
-    state.period = period || state.period;
+    if (period && period !== state.period) {
+      state.period = period;
+      state.heatPage = 0;
+    }
     state.date = null;
     void refresh();
+  }
+  if (button.dataset.heatPage && result) {
+    state.heatPage = Math.max(0, state.heatPage + Number(button.dataset.heatPage));
+    render(result);
   }
   if (remove) {
     if (state.sessionSource === 'recent') state.sessionSource = 'manual';

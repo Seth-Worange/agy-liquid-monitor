@@ -93,10 +93,10 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
   }
 
   const range = buildDateRange(period, nowMs, earliestDateKey);
-  const heatmapRange = buildDateRange('30D', nowMs);
   const trailing7Start = addDays(range.endKey, -6);
 
-  const dayMap = new Map(heatmapRange.days.map((k) => [k, createEmptyDay(k)]));
+  const dayMap = new Map(range.days.map((k) => [k, createEmptyDay(k)]));
+  const activeDate = dayMap.has(selectedDateKey) ? selectedDateKey : null;
   const todayStats = {
     dateKey: range.todayKey, totalTokens: 0, inputTokens: 0, outputTokens: 0,
     costUsd: null, hasUnpriced: false, modelTimeMs: 0
@@ -139,7 +139,6 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
         trailing7Tokens += call.totalTokens;
       }
 
-      // Fixed trailing 30-day heatmap (invariant across 7D / 30D / ALL)
       const dayEntry = dayMap.get(dk);
       if (dayEntry) {
         dayEntry.totalTokens += call.totalTokens;
@@ -171,7 +170,7 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
         }
       }
 
-      const inModelAndTopScope = selectedDateKey ? dk === selectedDateKey : inPeriod;
+      const inModelAndTopScope = activeDate ? dk === activeDate : inPeriod;
       if (!inModelAndTopScope) continue;
       sessInSelection = true;
 
@@ -279,7 +278,7 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
 
   const activeDays = periodActiveDays.size;
 
-  const modelShareDenom = selectedDateKey ? selectedModelTokens : periodTokens;
+  const modelShareDenom = activeDate ? selectedModelTokens : periodTokens;
   const byModel = Array.from(modelMap.values())
     .sort((a, b) => b.totalTokens - a.totalTokens)
     .map((m) => ({
@@ -319,7 +318,8 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
 
   return {
     period: String(period || '7D').toUpperCase(),
-    selectedDateKey: selectedDateKey || null,
+    selectedDateKey: activeDate,
+    selectedDay: activeDate ? heatmap.find((day) => day.dateKey === activeDate) : null,
     range: { startKey: range.startKey, endKey: range.endKey, days: range.days.length },
     today: todayStats.totalTokens ? todayStats : { ...todayStats, costUsd: 0 },
     summary: {

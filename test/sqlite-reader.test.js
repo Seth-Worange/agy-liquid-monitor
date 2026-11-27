@@ -166,7 +166,7 @@ test('sqlite-reader: WAL-safe read-only summaries, incremental cache, and contex
     assert.equal(snapshot.panels[0].context.exactPromptTokens, 5000);
     assert.equal(snapshot.panels[0].subagentSummary.totalCount, 2);
     assert.equal(snapshot.panels[0].subagentSummary.runningCount, 1);
-    assert.equal(snapshot.usage.heatmap.length, 30);
+    assert.equal(snapshot.usage.heatmap.length, 7);
     assert.equal(snapshot.quota.online, false);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

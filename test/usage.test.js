@@ -106,10 +106,11 @@ test('usage: 7D/30D/ALL summary, heatmap levels, By Model, Top 3 rollup, and day
   assert.equal(r7.summary.activeChats, 2); // root-a (with child) + root-c
   assert.equal(r7.summary.activeDays, 2);
   assert.equal(r7.summary.dailyAvgTokens, (330000 + 55000) / 2);
-  // Fixed trailing 30-day heatmap invariant across 7D / 30D / ALL
-  assert.equal(r7.heatmap.length, 30);
-  assert.equal(r7.heatmap.find((d) => d.dateKey === '2026-11-24').level, 3);
-  assert.equal(r7.heatmap.find((d) => d.dateKey === '2026-11-10').level, 4);
+  // The calendar and rankings cover the same seven days.
+  assert.equal(r7.heatmap.length, 7);
+  assert.equal(r7.heatmap[0].dateKey, r7.range.startKey);
+  assert.equal(r7.heatmap.at(-1).dateKey, r7.range.endKey);
+  assert.equal(r7.heatmap.find((d) => d.dateKey === '2026-11-24').level, 4);
   assert.equal(r7.topSessions[0].conversationId, 'root-a');
   assert.equal(r7.topSessions[0].mainTokens, 110000);
   assert.equal(r7.topSessions[0].subagentTokens, 220000);
@@ -130,6 +131,11 @@ test('usage: 7D/30D/ALL summary, heatmap levels, By Model, Top 3 rollup, and day
   assert.equal(rDay.byModel[0].modelKey, 'claude-opus-5-5');
   assert.equal(rDay.byModel[0].totalTokens, 55000);
   assert.equal(rDay.byModel[0].shareRatio, 1);
+  assert.equal(rDay.selectedDay.totalTokens, 55000);
+  assert.equal(rDay.heatmap.length, 7);
+  const outside = usage.computeUsageReport(sessions, { period: '7D', nowMs, selectedDateKey: '2026-11-10' });
+  assert.equal(outside.selectedDateKey, null);
+  assert.deepEqual(outside.byModel, r7.byModel);
 
   // Clicking a day >7 days ago (2026-11-10) works directly and prices Gemini 4 Neon
   const rOldDay = usage.computeUsageReport(sessions, {
@@ -152,11 +158,15 @@ test('usage: 7D/30D/ALL summary, heatmap levels, By Model, Top 3 rollup, and day
   assert.equal(r30.summary.unpricedTokens, 110000);
   assert.equal(r30.summary.dailyAvgTokens, (385000 + 550000 + 110000) / 4);
   assert.equal(r30.topSessions[0].conversationId, 'root-b');
-  assert.deepEqual(r7.heatmap, r30.heatmap);
+  assert.equal(r30.heatmap.length, 30);
+  assert.ok(r30.byModel.length > r7.byModel.length);
 
-  // ALL starts from 2026-11-10 -> 15 days, while heatmap remains fixed 30 days
+  // ALL includes each day from the first recorded use.
   const rAll = usage.computeUsageReport(sessions, { period: 'ALL', nowMs });
   assert.equal(rAll.range.startKey, '2026-11-10');
   assert.equal(rAll.range.days, 15);
-  assert.deepEqual(rAll.heatmap, r30.heatmap);
+  assert.equal(rAll.heatmap.length, 15);
+  assert.equal(rAll.heatmap[0].dateKey, '2026-11-10');
+  assert.equal(rAll.heatmap[0].level, 4);
+  assert.equal(rAll.heatmap.reduce((sum, day) => sum + day.totalTokens, 0), rAll.summary.tokens);
 });

@@ -19,7 +19,8 @@ function renderPage({ demo = false } = {}) {
           demoFixture.panels.find((panel) => panel.main.conversationId === id)).filter(Boolean),
         menu: demoFixture.menu,
         quota: demoFixture.quota,
-        usage: { ...demoFixture.reports[period], ...demoFixture.days[date] }
+        usage: { ...demoFixture.reports[period],
+          ...(demoFixture.reports[period].heatmap.some((day) => day.dateKey === date) ? demoFixture.days[date] : {}) }
       });
     </script>`);
   }
