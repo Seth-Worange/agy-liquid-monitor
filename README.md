@@ -10,8 +10,10 @@
 
 简洁的半透明状态栏，实时查看模型额度、会话 Token、上下文和子代理。
 
-[![下载 Windows 安装包](docs/images/download-windows.svg)](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip)
-[![下载 macOS 安装包](docs/images/download-macos.svg)](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip)
+<p align="center">
+  <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip"><img src="docs/images/download-windows.svg" alt="下载 Windows 安装包" width="216" height="40"></a>
+  <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip"><img src="docs/images/download-macos.svg" alt="下载 macOS 安装包" width="216" height="40"></a>
+</p>
 
 [安装说明](#安装) · [版本记录](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
 

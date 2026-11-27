@@ -10,8 +10,10 @@
 
 See remaining model quota, session tokens, context usage, and subagent activity in a compact glass status bar.
 
-[![Download the Windows ZIP](docs/images/download-windows.svg)](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip)
-[![Download the macOS ZIP](docs/images/download-macos.svg)](https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip)
+<p align="center">
+  <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip"><img src="docs/images/download-windows.svg" alt="Download the Windows ZIP" width="216" height="40"></a>
+  <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip"><img src="docs/images/download-macos.svg" alt="Download the macOS ZIP" width="216" height="40"></a>
+</p>
 
 [Installation](#installation) · [Release notes](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
 
