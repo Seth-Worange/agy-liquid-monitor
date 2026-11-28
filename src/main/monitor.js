@@ -5,7 +5,9 @@ const path = require('node:path');
 const { CONTEXT_CATEGORIES, computeContextBreakdown } = require('../core/context');
 const { buildQuotaSnapshot, lookupContextLimit } = require('../core/quota');
 const { resolveModelIdentity } = require('../core/pricing');
-const { callStepIndex, combineSessionWithSubagents, computeSessionStats, mergeConversationCalls, normalizeSubagentStatus } = require('../core/session');
+const {
+  callStepIndex, combineSessionWithSubagents, computeContextTrend, computeSessionStats, mergeConversationCalls, normalizeSubagentStatus
+} = require('../core/session');
 const { computeUsageReport } = require('../core/usage');
 const { computeOrchestration } = require('../core/orchestration');
 const { liveHub, readHub } = require('./hub');
@@ -130,7 +132,8 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
       const mainStats = statsFor(meta, database, calls, quota.clientModelConfigs);
       const selection = modelSelections.find((pair) => Array.isArray(pair) && pair[0] === id)?.[1] ||
         (index === 0 ? query.currentModel : null);
-      const orchestration = computeOrchestration(calls, selection, database?.routes, database?.lastStepIndex);
+      const orchestration = computeOrchestration(calls, selection, database?.routes, database?.lastStepIndex,
+        query.orchestrationTurns === true);
       const children = (summaries.childrenByRoot.get(id) || [])
         .filter((child) => child.conversationId !== id)
         .map((child) => {
@@ -159,7 +162,8 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
           ? computeContextBreakdown(payload, { contextLimit: mainStats.waterline.contextLimit })
           : { breakdownAvailable: false, categories: CONTEXT_CATEGORIES };
       }
-      return { ...combineSessionWithSubagents(mainStats, children), orchestration, context, live: Boolean(liveCalls.length) };
+      const contextTrend = query.context === true ? computeContextTrend(calls, database?.checkpointSteps) : null;
+      return { ...combineSessionWithSubagents(mainStats, children), orchestration, context, contextTrend, live: Boolean(liveCalls.length) };
     });
 
     const activeQuota = buildQuotaSnapshot({

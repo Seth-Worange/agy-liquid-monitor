@@ -1,7 +1,7 @@
 'use strict';
 
 const { buildQuotaSnapshot } = require('../src/core/quota');
-const { computeSessionStats, combineSessionWithSubagents } = require('../src/core/session');
+const { computeContextTrend, computeSessionStats, combineSessionWithSubagents } = require('../src/core/session');
 const { CONTEXT_CATEGORIES } = require('../src/core/context');
 const { computeUsageReport } = require('../src/core/usage');
 const { computeOrchestration } = require('../src/core/orchestration');
@@ -34,6 +34,7 @@ function demoData(nowMs = Date.now()) {
   older.setDate(older.getDate() - 63);
   sessions[1].calls.unshift({ ...sessions[1].calls[0], timestampMs: older.getTime(), cacheReadTokens: 120000 });
   sessions[0].calls.at(-1).startStepIndex = 42;
+  sessions[0].calls.at(-1).modelDisplayName = 'Gemini 4 Neon (High)';
   sessions[0].calls.at(-2).cacheReadTokens += 245000;
   const panels = sessions.map((sess, index) => {
     const main = computeSessionStats({ ...sess, turns: 13 - index * 3, checkpointCount: index === 0 ? 2 : 0 });
@@ -54,10 +55,13 @@ function demoData(nowMs = Date.now()) {
     })), 'Orchestrator', [
       { stepIndex: 1, planner: 'Gemini 4 Neon (Medium)', executor: 'Gemini 4 Hydrogen (High)' },
       { stepIndex: 3, planner: 'Gemini 4 Carbon (Medium)', executor: 'Gemini 4 Hydrogen (High)' }
-    ], 5) : null;
+    ], 5, true) : null;
     return {
       ...combineSessionWithSubagents(main, children), live: index === 0,
       orchestration,
+      contextTrend: index === 0
+        ? computeContextTrend(sess.calls.map((call, i) => ({ ...call, stepIndex: 2 * i })), [2 * sess.calls.length - 3])
+        : computeContextTrend(sess.calls),
       context: {
         breakdownAvailable: true,
         categories: CONTEXT_CATEGORIES.map((category, i) => ({

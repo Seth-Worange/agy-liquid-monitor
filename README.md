@@ -15,7 +15,7 @@
   <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip"><img src="docs/images/download-macos.svg" alt="下载 macOS 安装包" width="216" height="40"></a>
 </p>
 
-[安装说明](#安装) · [版本记录](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
+[效果演示](#效果演示) · [安装说明](#安装) · [版本记录](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
 
 [![Antigravity](https://img.shields.io/badge/Antigravity-2.x-4285F4)](#安装)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.13-339933?logo=nodedotjs&logoColor=white)](#安装)
@@ -23,19 +23,49 @@
 
 </div>
 
+## 效果演示
+
+以下截图和动图使用本地演示数据。
+
+### 顶部和聊天框状态栏
+
 <p align="center">
   <img src="docs/images/hud-dark.png" alt="深色主题下展开的上下文用量面板" width="49%">
   <img src="docs/images/hud-light.png" alt="浅色主题下展开的模型额度面板" width="49%">
 </p>
-<p align="center"><sub>状态栏贴合 Antigravity 顶栏；点击额度或今日用量即可展开明细，并跟随宿主浅色与深色主题切换。</sub></p>
+
+顶部显示模型额度和今日用量，聊天框附近显示会话、上下文和子代理。点击对应指标展开详情。
+
+### 侧栏看板与历史用量
+
+![侧栏概览显示今日用量、额度、当前会话和上下文](docs/images/dashboard-overview.webp)
+
+![历史用量动图，从 30 天切换到 7 天，再选择热力图中的一天](docs/images/usage-history.gif)
+
+切换 **7 天、30 天、全部**，热力图、模型排名和热门会话随范围一起更新。点选热力图中的一天可查看当日数据。
+
+### Orchestrator 编排轮次
+
+![编排动图，从最近一轮切换到第一轮，查看规划和执行模型、用量及耗时](docs/images/orchestration-turns.gif)
+
+打开侧栏的「会话」，在 Orchestrator 区块切换已记录的轮次，查看规划和执行各用了多少 Token、调用顺序及模型耗时。
+
+### 上下文趋势与外观设置
+
+<p align="center">
+  <img src="docs/images/context-trend.webp" alt="浅色上下文详情，展示压缩前后的 Token、模型切换和占用构成" width="49%">
+  <img src="docs/images/appearance-pink.webp" alt="粉色主题与玻璃透明度和模糊强度设置" width="49%">
+</p>
+
+上下文趋势标出压缩前后的读数与模型切换。外观设置可调整主题、玻璃透明度和模糊强度。
 
 ## 功能
 
 - **顶部状态栏**：显示 5 小时、7 天额度和今日 Token，窗口可见时每 12 秒检查更新，回到窗口时也会刷新。点击可查看额度和用量明细。
 - **会话状态**：在聊天框下方查看 Token、对话轮数、模型调用、缓存命中、首字延迟和输出速度。
-- **上下文检查**：查看窗口占用、压缩次数，以及系统提示词、技能规则、MCP 工具和消息等内容的估算占比。
+- **上下文检查**：查看窗口占用、压缩前后的用量趋势及模型切换，以及系统提示词、技能规则、MCP 工具和消息等内容的估算占比。
 - **子代理状态**：查看运行状态、模型与上下文占用。
-- **Orchestrator**：在会话详情查看最近一轮的规划与执行模型、各角色的用量和模型调用顺序。多轮编排会另显示会话累计，无法区分角色的调用会单独显示。
+- **Orchestrator**：会话详情默认显示最近一轮，可在侧栏切换到任意已记录的编排轮次，查看模型调用顺序、用量和耗时。多轮编排另显示会话累计，无法区分角色的调用会单独显示。
 - **用量看板**：在 Antigravity 侧栏查看额度、会话与历史趋势；支持 7 天、30 天和全部周期。
 - **原生主题**：沿用宿主字体与日夜主题，采用轻量半透明材质。
 
@@ -94,7 +124,7 @@ HUD 会改变应用包中的 `app.asar`，因此运行中的修改版应用不�
 
 ### 随客户端更新自动重装
 
-安装 HUD 后，照常点击 Antigravity 内的「更新并重启」。Windows 交给官方 NSIS 安装器，macOS 等待应用自带的 Squirrel 更新器完成替换。Liquid Monitor 随后检查新版本，重装状态栏，再打开 Antigravity。可以用 `npm run hud:check` 查看 `updateHandoff`。
+安装 HUD 后，照常点击 Antigravity 内的「更新并重启」。Windows 交给官方 NSIS 安装器，macOS 等待应用自带的 Squirrel 更新器完成替换。Liquid Monitor 随后检查新版本的兼容性，用本机已安装的副本恢复状态栏，再打开 Antigravity。可以用 `npm run hud:check` 查看 `updateHandoff`。升级到新的 Liquid Monitor 版本时，请先安装对应版本。
 
 如果新版不兼容，更新后的 Antigravity 会直接打开。手动安装更新或更新入口不匹配时，可以重新运行 `npm run hud:check` 和 `npm run hud:install`。请保留安装 HUD 时使用的 Node.js。最近一次自动更新的结果记录在 Windows 的 `%LOCALAPPDATA%\AGY Liquid Monitor\last-update.log` 或 macOS 的 `~/Library/Application Support/AGY Liquid Monitor/last-update.log`。
 

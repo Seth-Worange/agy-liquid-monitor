@@ -36,6 +36,7 @@ const tools = [
         period: { enum: ['7D', '30D', 'ALL'] },
         date: { type: ['string', 'null'] },
         context: { type: 'boolean' },
+        orchestrationTurns: { type: 'boolean' },
         force: { type: 'boolean' }
       }
     },

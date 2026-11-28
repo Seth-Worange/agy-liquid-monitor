@@ -165,7 +165,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
 
     let turns = 0;
     let checkpointCount = 0;
-    let lastCheckpointStep = null;
+    const checkpointSteps = [];
     let errorStepCount = 0;
     let lastStepHasError = false;
     const stepTimeByIdx = new Map();
@@ -176,7 +176,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
       if (stepType === 14) turns++;
       if (stepType === 23) checkpointCount++;
       const hasErr = Boolean(s.error_details && s.error_details.length > 0);
-      if (stepType === 23 && Number(s.status) === 3 && !hasErr) lastCheckpointStep = s.idx;
+      if (stepType === 23 && Number(s.status) === 3 && !hasErr) checkpointSteps.push(s.idx);
       if (hasErr) errorStepCount++;
       if (i === stepRows.length - 1) lastStepHasError = hasErr;
       if (s.metadata) {
@@ -185,6 +185,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
       }
     }
 
+    const lastCheckpointStep = checkpointSteps.at(-1) ?? null;
     const gmRows = db.prepare('SELECT idx, data FROM gen_metadata ORDER BY idx ASC').all();
     const calls = [];
     let lastContextGmIdx = null;
@@ -248,6 +249,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
     return {
       turns,
       checkpointCount,
+      checkpointSteps,
       lastCheckpointStep,
       lastStepIndex: stepRows.at(-1)?.idx ?? null,
       routes,
@@ -354,6 +356,7 @@ function scanConversationsIncremental({ dataDir = DEFAULT_DATA_DIR, entries = ne
       errorStepCount: dbData.errorStepCount || 0,
       lastStepHasError: Boolean(dbData.lastStepHasError),
       checkpointCount: dbData.checkpointCount || 0,
+      checkpointSteps: dbData.checkpointSteps,
       lastCheckpointStep: dbData.lastCheckpointStep ?? null,
       lastStepIndex: dbData.lastStepIndex,
       routes: dbData.routes,

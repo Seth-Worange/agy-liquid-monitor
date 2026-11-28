@@ -28,7 +28,7 @@ function emptyUsage() {
   return { planner: { calls: 0, tokens: 0 }, executor: { calls: 0, tokens: 0 }, unknown: { calls: 0, tokens: 0 } };
 }
 
-function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredStep = null) {
+function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredStep = null, includeTurns = false) {
   const active = /\borchestrator\b/i.test(selectedModel || '');
   const observed = new Map();
   const firstPair = new Map();
@@ -61,7 +61,11 @@ function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredSt
     if (!runs.has(config)) {
       const planner = describe(config.planner, observed);
       const executor = describe(config.executor, observed);
-      runs.set(config, { planner, executor, usage: emptyUsage(), timeline: [] });
+      const turnNumber = runs.size + 1;
+      const id = route ? `step-${route.stepIndex}` : `record-${call.stepIndex ?? 'unknown'}-${turnNumber}`;
+      runs.set(config, {
+        id, number: turnNumber, planner, executor, usage: emptyUsage(), timeline: [], durationMs: null
+      });
     }
     const run = runs.get(config);
     latest = run;
@@ -75,24 +79,30 @@ function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredSt
       totals[role].calls++;
     }
     const label = model.modelKey === 'unknown' ? null : model.displayNameWithEffort;
+    const elapsed = call.ttftMs === null && call.streamingMs === null
+      ? null : (call.ttftMs ?? 0) + (call.streamingMs ?? 0);
+    if (elapsed !== null) run.durationMs = (run.durationMs ?? 0) + elapsed;
     const previous = run.timeline.at(-1);
     if (previous?.role === role && previous?.model === label) {
       previous.calls++;
+      previous.tokens += call.totalTokens;
+      if (elapsed !== null) previous.durationMs = (previous.durationMs ?? 0) + elapsed;
     } else {
-      if (run.timeline.length === 6) run.timeline.shift();
-      run.timeline.push({ role, model: label, calls: 1 });
+      if (!includeTurns && run.timeline.length === 6) run.timeline.shift();
+      run.timeline.push({ role, model: label, calls: 1, tokens: call.totalTokens, durationMs: elapsed });
     }
   }
   if (!active && !latest) return null;
+  const detail = (run) => ({
+    id: run.id, number: run.number, roles: { planner: run.planner.label, executor: run.executor.label },
+    usage: run.usage, timeline: run.timeline, durationMs: run.durationMs
+  });
   return {
     active,
     runs: runs.size,
     usage,
-    latest: latest && {
-      roles: { planner: latest.planner.label, executor: latest.executor.label },
-      usage: latest.usage,
-      timeline: latest.timeline
-    }
+    latest: latest && detail(latest),
+    ...(includeTurns ? { turns: [...runs.values()].map(detail) } : {})
   };
 }
 

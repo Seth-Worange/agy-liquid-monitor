@@ -4,6 +4,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const session = require('../src/core/session');
 
+test('context trend marks completed checkpoints and waits for a measured prompt', () => {
+  const calls = [
+    { stepIndex: 1, inputTokens: 150, cacheReadTokens: 200, modelNum: 1532 },
+    { stepIndex: 2, inputTokens: 460, modelNum: 1532 },
+    { stepIndex: 3, outputTokens: 10, modelNum: 1525 },
+    { stepIndex: 4, inputTokens: 100, modelNum: 1525 }
+  ];
+  const trend = session.computeContextTrend(calls, [2, 5]);
+  assert.deepEqual(trend.map((point) => point.tokens ?? point.beforeTokens), [350, 350, 100, 100]);
+  assert.equal(trend[2].afterCheckpoint, true);
+  assert.equal(trend[2].modelChanged, true);
+  assert.equal(trend.at(-1).kind, 'checkpoint');
+  const inferred = session.computeContextTrend([calls[0], { ...calls[3], startStepIndex: 20 }]);
+  assert.deepEqual(inferred.map((point) => point.kind), ['sample', 'checkpoint', 'sample']);
+});
+
 test('session: computeSessionStats skips 0-token calls and aggregates metrics accurately', () => {
   const stats = session.computeSessionStats({
     conversationId: 'main-1',

@@ -6,7 +6,8 @@ const systemTheme = matchMedia('(prefers-color-scheme: light)');
 const demo = document.body.dataset.demo === 'true';
 const framed = window.parent !== window;
 const content = $('#content');
-const state = { view: 'overview', period: '30D', date: null, heatPage: 0, ids: [], sessionSource: 'recent' };
+const state = { view: 'overview', period: '30D', date: null, heatPage: 0, ids: [], sessionSource: 'recent',
+  orchestrationTurns: new Map() };
 let result = null;
 let hostTheme = null;
 let hostConversationId = null;
@@ -116,7 +117,7 @@ async function readData(force) {
   if (!demo && !framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
   if (!demo && !hostConnected) {
     const init = await request('ui/initialize', {
-      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.4' },
+      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.5' },
       appCapabilities: {}, protocolVersion: '2026-01-26'
     });
     applyHostContext(init?.hostContext);
@@ -125,7 +126,8 @@ async function readData(force) {
   }
   const query = { ids: state.sessionSource === 'recent' ? [] : state.ids,
     fallback: state.sessionSource !== 'host', period: state.view === 'overview' ? '30D' : state.period,
-    date: state.view === 'usage' ? state.date : null, context: state.view === 'context', force };
+    date: state.view === 'usage' ? state.date : null, context: state.view === 'context',
+    orchestrationTurns: state.view === 'session', force };
   if (demo) return window.monitorDemo(query);
   const response = await request('tools/call', { name: 'monitor_snapshot', arguments: query });
   if (response?.isError || !response?.structuredContent) throw new Error('暂时无法读取本地用量。请刷新重试。');
@@ -248,7 +250,12 @@ appearancePanel.addEventListener('keydown', (event) => {
 
 content.addEventListener('keydown', heatmapKeydown);
 content.addEventListener('change', (event) => {
-  const { id, value } = event.target;
+  const { dataset, id, value } = event.target;
+  if (dataset.orchestrationTurn && result) {
+    state.orchestrationTurns.set(dataset.orchestrationTurn, value);
+    render(result);
+    return;
+  }
   if (!value) return;
   if (id === 'session-select') {
     state.sessionSource = value === hostConversationId ? 'host' : 'manual';

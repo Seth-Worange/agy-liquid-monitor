@@ -2,6 +2,7 @@ function createMonitorViews(state) {
   const exact = new Intl.NumberFormat('en-US');
   const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
   const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 3 });
+  const sampleTime = new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const format = (value, formatter) => Number.isFinite(value) ? formatter.format(value) : '—';
   const tokens = (value) => format(value, compact);
   const percent = (value) => Number.isFinite(value) ? `${Math.round(value * 100)}%` : '—';
@@ -140,7 +141,7 @@ function createMonitorViews(state) {
       ${unselected.map((item) => `<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('')}</select>` : ''}</div>`;
   }
 
-  function orchestrationDetail(data) {
+  function orchestrationDetail(data, conversationId) {
     if (!data) return '';
     const labels = { planner: '规划', executor: '执行', unknown: '角色未区分' };
     const scope = data.active ? '已选模式' : '会话记录';
@@ -152,10 +153,21 @@ function createMonitorViews(state) {
           ? `<div class="meta">${showModel(roles[role])}</div>` : ''}</div><span class="line-value">${tokens(item.tokens)} Token · ${item.calls} 次</span></div>`;
       }).join('');
     const latest = data.latest;
+    const turns = data.turns || [];
+    const selected = turns.find((turn) => turn.id !== latest?.id && turn.id === state.orchestrationTurns?.get(conversationId));
+    const turn = selected || latest;
+    const picker = state.orchestrationTurns && turns.length > 1
+      ? `<select class="select orchestration-picker" data-orchestration-turn="${escape(conversationId)}" aria-label="选择编排轮次">
+          <option value="latest">最近一轮 · 第 ${latest.number} 轮</option>
+          ${turns.filter((entry) => entry.id !== latest.id).reverse().map((entry) => `<option value="${escape(entry.id)}"${entry === selected ? ' selected' : ''}>第 ${entry.number} 轮</option>`).join('')}
+        </select>` : '';
     return `<section class="orchestration"><div class="section-head"><h3>Orchestrator</h3><span class="meta">${scope}</span></div>
-      ${latest ? `<h3 class="small-metrics">最近一轮编排</h3><div class="lines">${rows(latest.usage, latest.roles)}</div>
-      <h3 class="small-metrics">模型调用顺序</h3><ol class="orchestration-timeline">${latest.timeline.map((item) =>
-        `<li><span>${labels[item.role]} · ${showModel(item.model)}</span><span class="meta">${item.calls} 次</span></li>`).join('')}</ol>
+      ${turn ? `<div class="section-head small-metrics"><h3>${selected ? `第 ${turn.number} 轮编排` : '最近一轮编排'}</h3>${picker}</div>
+      <div class="lines">${rows(turn.usage, turn.roles)}</div>
+      <div class="section-head small-metrics"><h3>模型调用顺序</h3>${turn.durationMs !== null
+        ? `<span class="meta">模型耗时 ${duration(turn.durationMs)}</span>` : ''}</div>
+      <ol class="orchestration-timeline">${turn.timeline.map((item) =>
+        `<li><span>${labels[item.role]} · ${showModel(item.model)}</span><span class="meta">${item.calls} 次 · ${tokens(item.tokens)} Token${item.durationMs === null ? '' : ` · ${duration(item.durationMs)}`}</span></li>`).join('')}</ol>
       ${data.runs > 1 ? `<h3 class="small-metrics">本会话累计 · ${data.runs} 轮编排</h3><div class="lines">${rows(data.usage)}</div>` : ''}`
       : '<p class="note small-metrics">已选择编排模式，等待 Antigravity 记录规划与执行调用。</p>'}</section>`;
   }
@@ -175,14 +187,45 @@ function createMonitorViews(state) {
       </div><div><div class="section-head"><h3>主会话 Token 构成</h3><span class="meta">缓存命中 ${percent(main.cacheHitRate)}</span></div>
       <div class="lines">${split.map(([label, value, color]) => line(label, tokens(value), value / main.totalTokens, color)).join('')}</div></div>
       </div><p class="note small-metrics">${subagentSummary.totalCount ? `总量包含 ${subagentSummary.totalCount} 个子代理。 ` : ''}费用按内置公开 API 单价估算。</p>
-      ${orchestrationDetail(orchestration)}`;
+      ${orchestrationDetail(orchestration, main.conversationId)}`;
+  }
+
+  function contextTrendView(points) {
+    if (!points?.length) return '';
+    const samples = points.filter((point) => point.kind === 'sample');
+    const peak = Math.max(1, ...samples.map((point) => point.tokens));
+    const firstAt = samples[0]?.timestampMs;
+    const lastAt = samples.at(-1)?.timestampMs;
+    const showTimes = Number.isFinite(firstAt) && Number.isFinite(lastAt) && firstAt < lastAt;
+    const x = (index) => 12 + index * 416 / Math.max(points.length - 1, 1);
+    const y = (value) => 90 - value * 77 / peak;
+    const checkpointLabel = (point) => point.inferred ? '上下文起点变化' : '上下文压缩';
+    const trace = points.map((point, index) => point.kind === 'sample'
+      ? `${points[index - 1]?.kind === 'sample' ? 'L' : 'M'}${x(index)} ${y(point.tokens)}` : '').join(' ');
+    const checkpoints = points.map((point, index) => point.kind === 'checkpoint'
+      ? `<line class="trend-checkpoint" x1="${x(index)}" x2="${x(index)}" y1="9" y2="90"><title>${checkpointLabel(point)}</title></line>` : '').join('');
+    const markers = points.map((point, index) => point.kind === 'sample'
+      ? `<circle class="${point.modelChanged ? 'trend-switch' : point.afterCheckpoint ? 'trend-after' : 'trend-point'}" cx="${x(index)}" cy="${y(point.tokens)}" r="${point.modelChanged || point.afterCheckpoint ? 4 : 2.5}"><title>${exact.format(point.tokens)} Token${point.model ? ' · ' + escape(point.model) : ''}</title></circle>` : '').join('');
+    const events = points.flatMap((point, index) => {
+      if (point.kind === 'checkpoint') {
+        const after = points[index + 1]?.kind === 'sample' ? points[index + 1].tokens : null;
+        return [`<li><span>${checkpointLabel(point)}</span><span>${point.beforeTokens == null ? '—' : tokens(point.beforeTokens)} → ${after == null ? (index === points.length - 1 ? '待测量' : '暂无读数') : tokens(after) + ' Token'}</span></li>`];
+      }
+      return point.modelChanged ? [`<li><span>换用 ${escape(point.model)}</span><span>${tokens(point.tokens)} Token</span></li>`] : [];
+    });
+    return `<section class="small-metrics context-trend"><div class="section-head"><h3>上下文用量趋势</h3><span class="meta">${samples.length ? `峰值 ${tokens(peak)} Token` : '按调用顺序'}</span></div>
+      ${samples.length ? `<svg viewBox="0 0 440 100" role="img" aria-label="最近模型调用的上下文 Token 趋势">
+        <line class="trend-baseline" x1="12" x2="428" y1="90" y2="90"/>${checkpoints}<path class="trend-trace" d="${trace}"/>${markers}
+      </svg><div class="row meta"><span>${showTimes ? sampleTime.format(firstAt) : '较早调用'}</span><span>${showTimes ? sampleTime.format(lastAt) : '最近调用'}</span></div>` : ''}
+      ${events.length ? `<ul class="context-trend-events" aria-label="最近的压缩与模型切换">${events.slice(-5).join('')}</ul>` : ''}</section>`;
   }
 
   function contextDetail(panel) {
     const { main, context } = panel;
     const { waterline, compaction } = main;
+    const trend = contextTrendView(panel.contextTrend);
     if (waterline.awaitingMeasurement) {
-      return '<p class="eyebrow">上下文窗口 · 待测量</p><p class="note small-metrics">已完成压缩。Antigravity 会在下一次模型调用后提供新的上下文用量。</p>';
+      return '<p class="eyebrow">上下文窗口 · 待测量</p><p class="note small-metrics">已完成压缩。Antigravity 会在下一次模型调用后提供新的上下文用量。</p>' + trend;
     }
     return `<div class="row"><div><p class="eyebrow">上下文窗口占用</p><div class="metric small-metrics">
       <strong>${tokens(waterline.usedTokens)} / ${tokens(waterline.contextLimit)}</strong><p class="meta">Token · ${percent(waterline.ratio)}</p>
@@ -191,6 +234,7 @@ function createMonitorViews(state) {
         ? `已压缩 ${compaction.count} 次${compaction.lastBeforeTokens != null && compaction.lastAfterTokens != null
           ? ` · 最近一次 ${tokens(compaction.lastBeforeTokens)} → ${tokens(compaction.lastAfterTokens)} Token` : ''}`
         : '未记录到上下文压缩。'}</p>
+      ${trend}
       <div class="section-head small-metrics"><h3>占用构成</h3><span class="meta">按内容估算</span></div>
       ${context?.breakdownAvailable ? `<div class="lines">${context.categories.map((item, index) =>
         line(categories[item.key] || item.label, `${tokens(item.tokens)} · ${percent(item.ratio)}`, item.ratio, contextColors[index])).join('')}</div>`

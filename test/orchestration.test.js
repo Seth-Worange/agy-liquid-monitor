@@ -31,8 +31,8 @@ test('orchestration groups recorded turns and preserves observed handoff order',
 
 test('user turns take precedence over call config, including switching back to direct mode', () => {
   const calls = [
-    { stepIndex: 1, modelNum: 1532, inputTokens: 100 },
-    { stepIndex: 2, modelNum: 1525, inputTokens: 200, orchestrator: { planner: 1525, executor: 1525 } },
+    { stepIndex: 1, modelNum: 1532, inputTokens: 100, ttftMs: 250 },
+    { stepIndex: 2, modelNum: 1525, inputTokens: 200, streamingMs: 1900, orchestrator: { planner: 1525, executor: 1525 } },
     { stepIndex: 4, modelNum: 1525, inputTokens: 300 },
     { stepIndex: 6, modelNum: 1525, inputTokens: 400 },
     { stepIndex: 8, modelNum: 1525, inputTokens: 500 }
@@ -42,12 +42,14 @@ test('user turns take precedence over call config, including switching back to d
     { stepIndex: 3, planner: 1525, executor: 1525 },
     { stepIndex: 5, planner: 1525, executor: null }
   ];
-  const data = computeOrchestration(calls, null, routes, 6);
+  const data = computeOrchestration(calls, null, routes, 6, true);
   assert.equal(data.runs, 2);
   assert.deepEqual(data.usage, {
     planner: { calls: 1, tokens: 100 }, executor: { calls: 1, tokens: 200 }, unknown: { calls: 1, tokens: 300 }
   });
   assert.deepEqual(data.latest.usage.unknown, { calls: 1, tokens: 300 });
+  assert.deepEqual(data.turns.map((turn) => [turn.id, turn.durationMs]), [['step-0', 2150], ['step-3', null]]);
+  assert.deepEqual(data.turns[0].timeline.map((item) => item.tokens), [100, 200]);
 });
 
 test('later fallback configs do not reassign earlier calls in the same execution', () => {

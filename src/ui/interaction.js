@@ -65,7 +65,7 @@ function renderWithFocus(root, html, fallback) {
   if (renderedContent.get(root) === html) return;
   const active = root.getRootNode().activeElement;
   const wasFocused = root.contains(active);
-  const key = wasFocused && ['id', 'data-date', 'data-period', 'data-heat-page', 'data-remove', 'data-go', 'data-clear']
+  const key = wasFocused && ['id', 'data-date', 'data-period', 'data-heat-page', 'data-remove', 'data-go', 'data-clear', 'data-orchestration-turn']
     .find((name) => active.hasAttribute(name));
   const value = key && active.getAttribute(key);
   root.innerHTML = html;

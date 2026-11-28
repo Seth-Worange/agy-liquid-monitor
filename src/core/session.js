@@ -1,6 +1,6 @@
 'use strict';
 
-const { resolveModelIdentity, calculateSessionCost } = require('./pricing');
+const { resolveModelIdentity, resolveCallModel, calculateSessionCost } = require('./pricing');
 const { computeContextWaterline } = require('./context');
 
 function toNonNegInt(value) {
@@ -300,6 +300,46 @@ function computeCompactionInfo(validCalls = [], checkpointCount = 0) {
   };
 }
 
+function computeContextTrend(rawCalls, checkpointSteps = []) {
+  const points = [];
+  let checkpoint = 0;
+  let previous = null;
+  let previousModel = null;
+  let startStep = 0;
+  let checkpointIndex = -1;
+  const addCheckpoint = (inferred = false) =>
+    points.push({ kind: 'checkpoint', beforeTokens: previous?.tokens ?? null, inferred });
+  for (const call of rawCalls.map(normalizeCall).filter(Boolean)) {
+    const { stepIndex } = call;
+    const tokens = call.inputTokens + call.cacheReadTokens;
+    if (!tokens || (checkpointSteps.length && stepIndex === null)) continue;
+    while (checkpoint < checkpointSteps.length && checkpointSteps[checkpoint] < stepIndex) {
+      addCheckpoint();
+      checkpoint++;
+    }
+    if (checkpointSteps[checkpoint] === stepIndex) continue;
+    if (!checkpointSteps.length && previous &&
+        ((call.startStepIndex ?? 0) > startStep || (call.checkpointIndex ?? -1) > checkpointIndex)) addCheckpoint(true);
+    startStep = Math.max(startStep, call.startStepIndex ?? 0);
+    checkpointIndex = Math.max(checkpointIndex, call.checkpointIndex ?? -1);
+    const identity = resolveCallModel(call, null);
+    const model = identity?.displayNameWithEffort || null;
+    const point = {
+      kind: 'sample', tokens, model, timestampMs: call.timestampMs > 0 ? call.timestampMs : null,
+      afterCheckpoint: points.at(-1)?.kind === 'checkpoint',
+      modelChanged: Boolean(model && previousModel && model !== previousModel)
+    };
+    if (model) previousModel = model;
+    points.push(point);
+    previous = point;
+  }
+  while (checkpoint < checkpointSteps.length) {
+    addCheckpoint();
+    checkpoint++;
+  }
+  return points.slice(-40);
+}
+
 function computeSessionStats(input = {}) {
   const rawCalls = Array.isArray(input.calls) ? input.calls : [];
   const normalized = rawCalls.map(normalizeCall).filter(Boolean);
@@ -463,6 +503,7 @@ module.exports = {
   pickFirstValidModel,
   normalizeSubagentStatus,
   computeCompactionInfo,
+  computeContextTrend,
   computeSessionStats,
   combineSessionWithSubagents
 };

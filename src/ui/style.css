@@ -315,9 +315,21 @@ h1, h2, h3 { font-weight: 600; }
 .line-value { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .orchestration { border-top: 1px solid var(--edge); margin-top: 14px; padding-top: 12px; }
 .orchestration .row > :first-child { min-width: 0; }
+.orchestration .orchestration-picker { padding: 5px 9px; font-size: 12px; }
 .orchestration-timeline { margin: 8px 0 0; padding-inline-start: 18px; color: var(--muted); font-size: 12px; }
 .orchestration-timeline li { margin-bottom: 4px; overflow-wrap: anywhere; }
 .orchestration-timeline li .meta { margin-inline-start: 8px; }
+.context-trend svg { display: block; width: 100%; max-height: 110px; margin-top: 5px; }
+.trend-baseline { stroke: var(--edge); }
+.trend-trace { fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linejoin: round; }
+.trend-point { fill: var(--cyan); }
+.trend-checkpoint { stroke: var(--amber); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.trend-after { fill: var(--amber); }
+.trend-switch { fill: var(--violet); }
+.context-trend-events { display: grid; gap: 6px; margin: 9px 0 0; padding: 0; list-style: none; }
+.context-trend-events li { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; }
+.context-trend-events li span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.context-trend-events li span:last-child { white-space: nowrap; }
 .meter { height: 5px; border-radius: 20px; background: var(--track); overflow: hidden; }
 .meter i { display: block; height: 100%; width: var(--fraction); border-radius: inherit; background: var(--fill, var(--blue)); }
 .pane-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
