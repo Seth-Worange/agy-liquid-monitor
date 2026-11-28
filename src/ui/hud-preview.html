@@ -49,7 +49,13 @@
       usage: { ...fixture.reports[period],
         ...(fixture.reports[period].heatmap.some((day) => day.dateKey === date) ? fixture.days[date] : {}) }
     }) };
-    if (new URLSearchParams(location.search).get('theme') === 'light') document.documentElement.dataset.theme = 'light';
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'light') document.documentElement.dataset.theme = 'light';
+    if (params.get('orchestrator') === '1') {
+      const selector = document.querySelector('[data-testid="model-selector-trigger"]');
+      selector.textContent = 'Orchestrator';
+      selector.setAttribute('aria-label', 'Model selector, current: Orchestrator');
+    }
     document.querySelector('#toggle-theme').addEventListener('click', () => {
       const { dataset } = document.documentElement;
       dataset.theme = dataset.theme === 'dark' ? 'light' : 'dark';

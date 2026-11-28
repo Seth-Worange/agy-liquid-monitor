@@ -4,7 +4,7 @@ const { buildQuotaSnapshot } = require('../src/core/quota');
 const { computeContextTrend, computeSessionStats, combineSessionWithSubagents } = require('../src/core/session');
 const { CONTEXT_CATEGORIES } = require('../src/core/context');
 const { computeUsageReport } = require('../src/core/usage');
-const { computeOrchestration } = require('../src/core/orchestration');
+const { buildOrchestrationProgress, computeOrchestration } = require('../src/core/orchestration');
 
 function demoData(nowMs = Date.now()) {
   const conversations = [
@@ -49,16 +49,21 @@ function demoData(nowMs = Date.now()) {
     })) : [];
     const breakdown = [0.09, 0.08, 0.06, 0.14, 0.63];
     const orchestration = index === 0 ? computeOrchestration(sess.calls.slice(-5).map((call, i) => ({
-      ...call, stepIndex: i + 1,
+      ...call, stepIndex: (i + 1) * 10,
       modelDisplayName: i === 0 ? 'Gemini 4 Neon (Medium)' : i === 2 || i === 4
         ? 'Gemini 4 Carbon (Medium)' : 'Gemini 4 Hydrogen (High)'
     })), 'Orchestrator', [
-      { stepIndex: 1, planner: 'Gemini 4 Neon (Medium)', executor: 'Gemini 4 Hydrogen (High)' },
-      { stepIndex: 3, planner: 'Gemini 4 Carbon (Medium)', executor: 'Gemini 4 Hydrogen (High)' }
-    ], 5, true) : null;
+      { stepIndex: 5, planner: 'Gemini 4 Neon (Medium)', executor: 'Gemini 4 Hydrogen (High)' },
+      { stepIndex: 25, planner: 'Gemini 4 Carbon (Medium)', executor: 'Gemini 4 Hydrogen (High)' }
+    ], 50, true) : null;
     return {
       ...combineSessionWithSubagents(main, children), live: index === 0,
       orchestration,
+      orchestrationProgress: buildOrchestrationProgress(orchestration, { stepIndex: 25, status: 'Running', events: [
+        { stepIndex: 34, kind: 'handoff', text: '检查侧栏日期切换，修复历史用量筛选。\n保留日期选择，补跑会话与模型用量的回归测试。' },
+        { stepIndex: 45, kind: 'review', text: null },
+        { stepIndex: 46, kind: 'report', text: '已修复日期切换。历史用量、热力图和模型统计现在使用同一范围，相关测试通过。' }
+      ] }),
       contextTrend: index === 0
         ? computeContextTrend(sess.calls.map((call, i) => ({ ...call, stepIndex: 2 * i })), [2 * sess.calls.length - 3])
         : computeContextTrend(sess.calls),

@@ -2,12 +2,27 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { computeOrchestration } = require('../src/core/orchestration');
+const { buildOrchestrationProgress, computeOrchestration } = require('../src/core/orchestration');
 const { parseGenMetadata } = require('../src/core/pb');
 const { mergeConversationCalls } = require('../src/core/session');
 
 const live = (executionId, model, modelDisplayName, inputTokens, plannerConfig) => ({
   executionId, plannerConfig, chatModel: { model, modelDisplayName, usage: { inputTokens } }
+});
+
+test('inline orchestration prefers recorded handoffs and isolates the current turn', () => {
+  const routes = [{ stepIndex: 1, planner: 1532, executor: 1525 }];
+  const calls = [1532, 1525, 1532].map((modelNum, i) => ({ modelNum, stepIndex: 2 + i * 2, inputTokens: 100 }));
+  const orchestration = computeOrchestration(calls, 'Orchestrator', routes, 7, false, true);
+  const progress = buildOrchestrationProgress(orchestration, { stepIndex: 1, status: 'Running',
+    events: [{ kind: 'handoff', stepIndex: 3, text: 'Run the sidebar tests' }] });
+  assert.equal(progress.status, 'running');
+  assert.deepEqual(progress.entries.map(({ kind, from, to }) => [kind, from, to]), [
+    ['phase', undefined, 'planner'], ['handoff', 'planner', 'executor'], ['switch', 'executor', 'planner']
+  ]);
+  assert.equal(progress.entries[1].text, 'Run the sidebar tests');
+  assert.deepEqual(buildOrchestrationProgress(orchestration, { stepIndex: 8 }).entries, []);
+  assert.equal(buildOrchestrationProgress({ ...orchestration, active: false }, { stepIndex: 1 }), null);
 });
 
 test('orchestration groups recorded turns and preserves observed handoff order', () => {

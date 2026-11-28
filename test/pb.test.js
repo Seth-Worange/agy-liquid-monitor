@@ -30,6 +30,21 @@ function encodePackedVarints(fieldNum, values) {
   return encodeFieldBytes(fieldNum, inner);
 }
 
+test('pb: orchestration messages expose only explicit plan and report blocks', () => {
+  const event = (kind, text) => encodeFieldBytes(114, Buffer.concat([
+    encodeFieldBytes(1, text), encodeFieldBytes(3, kind)
+  ]));
+  assert.deepEqual(pb.parseOrchestrationEvent(event('plan_mode_handoff', 'system preface<plan>Fix the sidebar</plan>')),
+    { kind: 'handoff', text: 'Fix the sidebar' });
+  assert.deepEqual(pb.parseOrchestrationEvent(event('plan_mode_handback', '<report>Tests passed</report> tail')),
+    { kind: 'report', text: 'Tests passed' });
+  assert.deepEqual(pb.parseOrchestrationEvent(event('plan_mode_review', 'internal review prompt')),
+    { kind: 'review', text: null });
+  assert.deepEqual(pb.parseOrchestrationEvent(event('plan_mode_handoff', '<plan><analysis>hidden</analysis></plan>')),
+    { kind: 'handoff', text: null });
+  assert.equal(pb.parseOrchestrationEvent(event('agent_message', '<plan>unrelated</plan>')), null);
+});
+
 test('pb: decodeFields, packed varints, Timestamp, and Duration', () => {
   const tsBuf = Buffer.concat([encodeFieldVarint(1, 1795508720), encodeFieldVarint(2, 500000000)]);
   assert.equal(pb.decodeTimestampMs(tsBuf), 1795508720500);

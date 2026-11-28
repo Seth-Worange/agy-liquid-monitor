@@ -8,14 +8,14 @@
 
 **Usage monitoring for Antigravity Desktop on Windows and macOS**
 
-See remaining model quota, session tokens, context usage, and subagent activity in a compact glass status bar.
+See model quota, session tokens, context usage, and subagent activity in a compact glass status bar. Select Orchestrator to follow task handoffs and executor reports inside the current chat.
 
 <p align="center">
   <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip"><img src="docs/images/download-windows.svg" alt="Download the Windows ZIP" width="216" height="40"></a>
   <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip"><img src="docs/images/download-macos.svg" alt="Download the macOS ZIP" width="216" height="40"></a>
 </p>
 
-[Demo](#demo) · [Installation](#installation) · [Release notes](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
+[Demo](#demo) · [In-chat orchestration](#in-chat-orchestration-progress) · [Installation](#installation) · [Release notes](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
 
 [![Antigravity](https://img.shields.io/badge/Antigravity-2.x-4285F4)](#installation)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.13-339933?logo=nodedotjs&logoColor=white)](#installation)
@@ -44,7 +44,13 @@ The title bar shows quota and daily usage. The chat composer has controls for th
 
 Choose **7 days**, **30 days**, or **All** to update the heatmap, model rankings, and top sessions together. Select a day in the heatmap to see that day's usage.
 
-### Orchestrator turns
+### In-chat orchestration progress
+
+![The orchestration card opens above the composer, then expands the task passed from planner to executor](docs/images/orchestration-in-chat.gif)
+
+Select **Orchestrator** in the current chat's model menu and open **Orchestration Progress** above the composer. Follow handoffs, executor reports, and reviews in order. Open an individual handoff or report to read its recorded text. When the chat only records a model switch, the card shows which role took over.
+
+### Review Orchestrator turns in the sidebar
 
 ![Orchestrator switches from the most recent turn to turn one, with planner and executor details](docs/images/orchestration-turns.gif)
 
@@ -66,6 +72,7 @@ The context trend marks model changes and measurements before and after compacti
 - **Context panel** shows context usage over time, compaction measurements, model changes, and estimated usage by category, including system prompts, rules, MCP tools, and messages.
 - **Subagent panel** shows status, model, and context usage for each subagent.
 - **Orchestrator** opens the latest turn in session details by default. Use the sidebar to browse recorded turns and see their planner and executor, token usage, call sequence, and model time. Conversations with multiple turns also show cumulative usage. Calls with an ambiguous role are listed separately.
+- **In-chat orchestration progress** appears above the composer when Orchestrator is selected. Expand the card to see this turn's handoffs, executor reports, and review milestones. Expand a handoff or report to read its recorded text.
 - **Plugins dashboard** shows quota, sessions, and usage history for the last 7 days, the last 30 days, or all recorded activity.
 - **Native styling** uses the host's typography and a translucent glass surface.
 

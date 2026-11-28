@@ -43,6 +43,7 @@ ipcMain.handle(channel, (event, params) => {
     period: params?.period,
     date: params?.date,
     context: params?.context === true,
+    orchestrationProgress: params?.orchestrationProgress === true,
     force: params?.force === true,
     fallback: false
   };

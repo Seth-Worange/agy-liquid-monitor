@@ -66,6 +66,9 @@ function buildConversationFixture(dbPath, { wal = false, inputTokens = 1000 } = 
     db.exec('ALTER TABLE steps ADD COLUMN step_payload BLOB');
     const config = Buffer.concat([fVarint(1, 1532), fBytes(60, fVarint(1, 1525))]);
     db.prepare('UPDATE steps SET step_payload = ? WHERE idx = 0').run(fBytes(19, fBytes(12, fBytes(1, config))));
+    db.prepare('UPDATE steps SET step_type = 101, step_payload = ? WHERE idx = 1').run(fBytes(114, Buffer.concat([
+      fBytes(1, '<plan>Verify the status bar</plan>'), fBytes(3, 'plan_mode_handoff')
+    ])));
   }
 
   const csmBuf = Buffer.concat([
@@ -169,12 +172,21 @@ test('sqlite-reader: WAL-safe read-only summaries, incremental cache, and contex
     const { createMonitor } = require('../src/main/monitor');
     const snapshot = await createMonitor(tmpDir).snapshot({ ids: ['../main-1', 'main-1'], context: true, period: '7D' });
     assert.equal(snapshot.panels[0].main.conversationId, 'main-1');
+    assert.equal(snapshot.panels[0].orchestrationProgress, null);
     assert.deepEqual(snapshot.panels[0].orchestration.usage.executor, { calls: 1, tokens: 5250 });
     assert.equal(snapshot.panels[0].context.exactPromptTokens, 5000);
     assert.equal(snapshot.panels[0].subagentSummary.totalCount, 2);
     assert.equal(snapshot.panels[0].subagentSummary.runningCount, 1);
     assert.equal(snapshot.usage.heatmap.length, 7);
     assert.equal(snapshot.quota.online, false);
+    const flow = await createMonitor(tmpDir).snapshot({
+      ids: ['main-1'], currentModel: 'Orchestrator', orchestrationProgress: true
+    });
+    assert.equal(flow.panels[0].orchestrationProgress.entries[0].text, 'Verify the status bar');
+    const mainDb = new DatabaseSync(path.join(convDir, 'main-1.db'));
+    mainDb.exec('INSERT INTO steps (idx, step_type, status) VALUES (4, 14, 3)');
+    mainDb.close();
+    assert.equal(reader.readOrchestrationEvents(path.join(convDir, 'main-1.db'), 0), null);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

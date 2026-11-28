@@ -348,6 +348,26 @@ function parseUserInputRoute(input) {
   }
 }
 
+function parseOrchestrationEvent(input) {
+  try {
+    // CortexStep.internal_message (114) stores its text and event type in fields 1 and 3.
+    const message = decodeFields(input).find((f) => f.field === 114 && f.wire === 2);
+    const fields = decodeFields(message?.value);
+    const kind = decodeString(fields.find((f) => f.field === 3 && f.wire === 2)?.value);
+    if (kind === 'plan_mode_review') return { kind: 'review', text: null };
+    const handoff = kind === 'plan_mode_handoff';
+    if (!handoff && kind !== 'plan_mode_handback') return null;
+    const body = decodeString(fields.find((f) => f.field === 1 && f.wire === 2)?.value);
+    const block = (handoff ? /<plan>([\s\S]*?)<\/plan>/i : /<report>([\s\S]*?)<\/report>/i).exec(body)?.[1];
+    const excerpt = block?.trim().replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
+    const text = excerpt && !/<(?:analysis|thinking|system)\b/i.test(excerpt)
+      ? excerpt.length > 1600 ? excerpt.slice(0, 1600).trimEnd() + '…' : excerpt : null;
+    return { kind: handoff ? 'handoff' : 'report', text: text || null };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse CortexStepGeneratorMetadata from gen_metadata.data.
  * Skip heavy context payloads unless includeContext is true.
@@ -386,5 +406,6 @@ module.exports = {
   parseRawSummary,
   parseStepMetadata,
   parseUserInputRoute,
+  parseOrchestrationEvent,
   parseGenMetadata
 };

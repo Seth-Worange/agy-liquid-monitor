@@ -6,7 +6,7 @@ const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { pathToFileURL } = require('node:url');
 
-const { parseRawSummary, parseStepMetadata, parseGenMetadata, parseUserInputRoute } = require('../core/pb');
+const { parseRawSummary, parseStepMetadata, parseGenMetadata, parseUserInputRoute, parseOrchestrationEvent } = require('../core/pb');
 const { resolveModelIdentity } = require('../core/pricing');
 const { computeContextBreakdown } = require('../core/context');
 const {
@@ -164,6 +164,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
       }) : [];
 
     let turns = 0;
+    let lastUserStep = null;
     let checkpointCount = 0;
     const checkpointSteps = [];
     let errorStepCount = 0;
@@ -173,7 +174,10 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
     for (let i = 0; i < stepRows.length; i++) {
       const s = stepRows[i];
       const stepType = Number(s.step_type);
-      if (stepType === 14) turns++;
+      if (stepType === 14) {
+        turns++;
+        lastUserStep = s.idx;
+      }
       if (stepType === 23) checkpointCount++;
       const hasErr = Boolean(s.error_details && s.error_details.length > 0);
       if (stepType === 23 && Number(s.status) === 3 && !hasErr) checkpointSteps.push(s.idx);
@@ -248,6 +252,7 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
 
     return {
       turns,
+      lastUserStep,
       checkpointCount,
       checkpointSteps,
       lastCheckpointStep,
@@ -353,6 +358,7 @@ function scanConversationsIncremental({ dataDir = DEFAULT_DATA_DIR, entries = ne
       }),
       lastModifiedMs: sum?.lastModifiedMs || fs.statSync(dbPath).mtimeMs,
       turns: dbData.turns || 0,
+      lastUserStep: dbData.lastUserStep,
       errorStepCount: dbData.errorStepCount || 0,
       lastStepHasError: Boolean(dbData.lastStepHasError),
       checkpointCount: dbData.checkpointCount || 0,
@@ -386,6 +392,23 @@ function readConversationContext(dataDir = DEFAULT_DATA_DIR, conversationId, { c
   return computeContextBreakdown(detail.contextChatModel, { contextLimit });
 }
 
+function readOrchestrationEvents(dbPath, afterStep) {
+  const db = openReadOnlyDb(dbPath);
+  try {
+    const rows = db.prepare(`WITH last_input AS (SELECT MAX(idx) AS idx FROM steps WHERE step_type = 14)
+      SELECT last_input.idx AS last_user_step, events.idx, events.step_payload
+      FROM last_input LEFT JOIN steps AS events ON last_input.idx = ? AND events.idx > last_input.idx AND events.step_type = 101
+      ORDER BY events.idx ASC`).all(afterStep);
+    if (rows[0]?.last_user_step !== afterStep) return null;
+    return rows.flatMap((row) => {
+      const event = parseOrchestrationEvent(row.step_payload);
+      return event ? [{ ...event, stepIndex: row.idx }] : [];
+    });
+  } finally {
+    db.close();
+  }
+}
+
 module.exports = {
   DEFAULT_DATA_DIR,
   toSqliteFileUri,
@@ -394,6 +417,7 @@ module.exports = {
   parseSqlTimestampMs,
   readConversationSummaries,
   readConversationDb,
+  readOrchestrationEvents,
   getDbFingerprint,
   scanConversationsIncremental,
   readConversationContext

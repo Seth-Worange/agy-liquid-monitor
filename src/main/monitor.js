@@ -9,10 +9,10 @@ const {
   callStepIndex, combineSessionWithSubagents, computeContextTrend, computeSessionStats, mergeConversationCalls, normalizeSubagentStatus
 } = require('../core/session');
 const { computeUsageReport } = require('../core/usage');
-const { computeOrchestration } = require('../core/orchestration');
+const { buildOrchestrationProgress, computeOrchestration } = require('../core/orchestration');
 const { liveHub, readHub } = require('./hub');
 const { readAppearance } = require('./preferences');
-const { DEFAULT_DATA_DIR, scanConversationsIncremental, readConversationDb } = require('./sqlite-reader');
+const { DEFAULT_DATA_DIR, scanConversationsIncremental, readConversationDb, readOrchestrationEvents } = require('./sqlite-reader');
 
 const sessionId = /^[a-z0-9][a-z0-9-]{0,127}$/i;
 // Expire quota before the HUD's next 12-second poll, while deduplicating nearby requests.
@@ -133,7 +133,24 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
       const selection = modelSelections.find((pair) => Array.isArray(pair) && pair[0] === id)?.[1] ||
         (index === 0 ? query.currentModel : null);
       const orchestration = computeOrchestration(calls, selection, database?.routes, database?.lastStepIndex,
-        query.orchestrationTurns === true);
+        query.orchestrationTurns === true, query.orchestrationProgress === true);
+      let orchestrationProgress = null;
+      if (query.orchestrationProgress === true && orchestration?.active) {
+        const stepIndex = database?.lastUserStep;
+        const route = database?.routes.at(-1);
+        let events;
+        if (route?.stepIndex === stepIndex && route?.executor) {
+          try {
+            events = readOrchestrationEvents(path.join(dataDir, 'conversations', `${id}.db`), stepIndex);
+          } catch {
+            // Older archives may lack the step payload column.
+          }
+        }
+        orchestrationProgress = buildOrchestrationProgress(orchestration, {
+          stepIndex: events === null ? null : stepIndex, route: route?.stepIndex === stepIndex ? route : null,
+          events: events ?? [], status: mainStats.normalizedStatus
+        });
+      }
       const children = (summaries.childrenByRoot.get(id) || [])
         .filter((child) => child.conversationId !== id)
         .map((child) => {
@@ -163,7 +180,8 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
           : { breakdownAvailable: false, categories: CONTEXT_CATEGORIES };
       }
       const contextTrend = query.context === true ? computeContextTrend(calls, database?.checkpointSteps) : null;
-      return { ...combineSessionWithSubagents(mainStats, children), orchestration, context, contextTrend, live: Boolean(liveCalls.length) };
+      return { ...combineSessionWithSubagents(mainStats, children), orchestration, orchestrationProgress,
+        context, contextTrend, live: Boolean(liveCalls.length) };
     });
 
     const activeQuota = buildQuotaSnapshot({

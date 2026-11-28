@@ -8,14 +8,14 @@
 
 **Antigravity Desktop 的 Windows / macOS 用量监控插件**
 
-简洁的半透明状态栏，实时查看模型额度、会话 Token、上下文和子代理。
+用半透明状态栏查看模型额度、会话 Token、上下文和子代理。开启 Orchestrator 后，可在当前对话跟进模型交办和执行回报。
 
 <p align="center">
   <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-windows.zip"><img src="docs/images/download-windows.svg" alt="下载 Windows 安装包" width="216" height="40"></a>
   <a href="https://github.com/Seth-Worange/agy-liquid-monitor/releases/latest/download/agy-liquid-monitor-macos.zip"><img src="docs/images/download-macos.svg" alt="下载 macOS 安装包" width="216" height="40"></a>
 </p>
 
-[效果演示](#效果演示) · [安装说明](#安装) · [版本记录](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
+[效果演示](#效果演示) · [对话内编排](#对话内编排进度) · [安装说明](#安装) · [版本记录](https://github.com/Seth-Worange/agy-liquid-monitor/releases)
 
 [![Antigravity](https://img.shields.io/badge/Antigravity-2.x-4285F4)](#安装)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.13-339933?logo=nodedotjs&logoColor=white)](#安装)
@@ -44,7 +44,13 @@
 
 切换 **7 天、30 天、全部**，热力图、模型排名和热门会话随范围一起更新。点选热力图中的一天可查看当日数据。
 
-### Orchestrator 编排轮次
+### 对话内编排进度
+
+![展开输入框上方的编排卡片，再查看规划模型交给执行模型的任务](docs/images/orchestration-in-chat.gif)
+
+在当前会话的模型菜单选用 **Orchestrator**，再展开输入框上方的「编排进度」。卡片按时间显示本轮的交办、执行回报和复审。点开一条交办或回报，可阅读会话里记录的内容。仅记录到模型切换时，卡片会显示接手方向。
+
+### 在侧栏回看编排轮次
 
 ![编排动图，从最近一轮切换到第一轮，查看规划和执行模型、用量及耗时](docs/images/orchestration-turns.gif)
 
@@ -66,6 +72,7 @@
 - **上下文检查**：查看窗口占用、压缩前后的用量趋势及模型切换，以及系统提示词、技能规则、MCP 工具和消息等内容的估算占比。
 - **子代理状态**：查看运行状态、模型与上下文占用。
 - **Orchestrator**：会话详情默认显示最近一轮，可在侧栏切换到任意已记录的编排轮次，查看模型调用顺序、用量和耗时。多轮编排另显示会话累计，无法区分角色的调用会单独显示。
+- **对话内编排进度**：选用 Orchestrator 后，输入框上方出现可折叠的卡片，显示本轮交办、执行回报和复审记录。点开交办或回报可阅读已记录的内容。
 - **用量看板**：在 Antigravity 侧栏查看额度、会话与历史趋势；支持 7 天、30 天和全部周期。
 - **原生主题**：沿用宿主字体与日夜主题，采用轻量半透明材质。
 

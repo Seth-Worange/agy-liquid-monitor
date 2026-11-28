@@ -61,6 +61,56 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     return bar;
   }
 
+  function makeProgressCard() {
+    const card = host({ 'data-hud-orchestration': '', 'data-agy-liquid': '', hidden: '' });
+    card.root.innerHTML = `<details class="flow-card">
+      <summary><span class="flow-title">${icon('session')} 编排进度</span><span class="flow-state" aria-live="polite"></span>${icon('chevron')}</summary>
+      <div class="flow-body"></div>
+    </details>`;
+    return card;
+  }
+
+  function updateProgress(bar) {
+    if (!bar.flow) return;
+    const { el, root } = bar.flow;
+    el.hidden = !bar.showProgress;
+    if (el.hidden) return;
+    const progress = result?.panels.find((panel) => panel.main.conversationId === bar.id)?.orchestrationProgress;
+    const badge = root.querySelector('.flow-state');
+    const statuses = { waiting: '等待本轮记录', running: '进行中', error: '运行异常', recorded: '本轮记录' };
+    const status = progress?.status || 'waiting';
+    const badgeText = statuses[status] + (progress?.count ? ` · ${progress.count} 个节点` : '');
+    if (badge.textContent !== badgeText) badge.textContent = badgeText;
+    badge.dataset.status = status;
+    const roleNames = { planner: '规划模型', executor: '执行模型', unknown: '角色未区分' };
+    const model = (role) => views.modelName(progress?.roles?.[role] || roleNames[role]);
+    const actions = { handoff: '交办', report: '执行回报', switch: '接手', phase: '模型调用' };
+    const body = root.querySelector('.flow-body');
+    const entries = progress?.entries || [];
+    const html = entries.length ? `
+      <ol class="flow-list">${entries.map((entry) => {
+        const name = entry.from ? `${model(entry.from)} <span class="flow-arrow" aria-hidden="true">→</span> ${model(entry.to)}`
+          : entry.to ? views.modelName(entry.model || roleNames[entry.to]) : '进度复审';
+        const description = entry.text?.split(/\r?\n/).map((line) => line.replace(/^\s*[#>*-]+\s*/, '').trim())
+          .filter(Boolean).slice(0, 2).join(' ');
+        const teaser = description && description.length > 110 ? description.slice(0, 110).trimEnd() + '…' : description;
+        const key = `${entry.kind}-${entry.stepIndex}`;
+        return `<li data-phase="${entry.to || 'review'}"><div class="flow-heading"><strong>${name}</strong>${actions[entry.kind] ? `<span>${actions[entry.kind]}</span>` : ''}</div>
+          ${teaser ? `<details class="flow-entry" data-flow-entry="${key}"><summary><span class="flow-teaser">${views.escape(teaser)}</span><span class="flow-expanded-label">收起内容</span><span class="flow-expand">${icon('chevron')}</span></summary>
+            <p>${views.escape(entry.text)}</p></details>` : ''}
+        </li>`;
+      }).join('')}</ol>` : '<p class="note">Antigravity 记录本轮模型调用或交接后，会在这里显示。</p>';
+    if (bar.flow.markup === html) return;
+    const expanded = new Set([...body.querySelectorAll('.flow-entry[open]')].map((entry) => entry.dataset.flowEntry));
+    const focused = root.activeElement?.closest('.flow-entry')?.dataset.flowEntry;
+    body.innerHTML = html;
+    bar.flow.markup = html;
+    for (const entry of body.querySelectorAll('.flow-entry')) {
+      entry.open = expanded.has(entry.dataset.flowEntry);
+      if (entry.dataset.flowEntry === focused) entry.querySelector('summary').focus({ preventScroll: true });
+    }
+  }
+
   const top = makeBar('top', ['quota', 'usage', 'appearance']);
   const portal = host({ 'data-agy-liquid-panel': '' });
   portal.root.innerHTML = `<section class="hud-popover" role="dialog" aria-modal="false" aria-labelledby="hud-title" popover="manual">
@@ -157,6 +207,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     for (const [trigger, bar] of composerBars) {
       if (visible.has(trigger)) continue;
       bar.el.remove();
+      bar.flow?.el.remove();
       composerBars.delete(trigger);
     }
     const fromRoute = routeIds();
@@ -176,7 +227,12 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         bar = makeBar('composer', ['session', 'context', 'agents']);
         composerBars.set(trigger, bar);
       }
-      bar.id = validId.test(id || '') ? id : null;
+      const conversationId = validId.test(id || '') ? id : null;
+      if (bar.id !== conversationId && bar.flow) {
+        bar.flow.el.remove();
+        bar.flow = null;
+      }
+      bar.id = conversationId;
       const width = (footer || box || trigger.parentElement).getBoundingClientRect().width;
       const stacked = width < 600 && box?.parentElement;
       bar.el.toggleAttribute('data-stacked', Boolean(stacked));
@@ -192,6 +248,11 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         }
       }
       const selectedModel = trigger.getAttribute('aria-label')?.match(/current:\s*(.+)$/i)?.[1] || trigger.textContent?.trim();
+      bar.showProgress = Boolean(box && bar.id && /\borchestrator\b/i.test(selectedModel || ''));
+      if (bar.showProgress) {
+        bar.flow ||= makeProgressCard();
+        if (box.previousElementSibling !== bar.flow.el) box.before(bar.flow.el);
+      }
       if (bar.id) {
         focused ? active.unshift(bar.id) : active.push(bar.id);
         if (selectedModel) selections.push([bar.id, selectedModel]);
@@ -217,10 +278,12 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   function applyAppearance() {
     const theme = detectTheme();
     for (const bar of [top, ...composerBars.values(), portal]) appearance.apply(bar.el, theme);
+    for (const bar of composerBars.values()) if (bar.flow) appearance.apply(bar.flow.el, theme);
   }
 
   function paintBars() {
     for (const bar of [top, ...composerBars.values()]) updateBar(bar);
+    for (const bar of composerBars.values()) updateProgress(bar);
   }
 
   function reposition() {
@@ -306,6 +369,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     try {
       const data = await api.snapshot({
         ids, period: state.period, date: state.date, context: open?.section === 'context',
+        orchestrationProgress: [...composerBars.values()].some((bar) => bar.showProgress),
         currentModel: model, modelSelections, fallback: false, force
       });
       appearance.receive(data.appearance, checkpoint);

@@ -28,7 +28,7 @@ function emptyUsage() {
   return { planner: { calls: 0, tokens: 0 }, executor: { calls: 0, tokens: 0 }, unknown: { calls: 0, tokens: 0 } };
 }
 
-function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredStep = null, includeTurns = false) {
+function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredStep = null, includeTurns = false, includeProgress = false) {
   const active = /\borchestrator\b/i.test(selectedModel || '');
   const observed = new Map();
   const firstPair = new Map();
@@ -86,24 +86,62 @@ function computeOrchestration(rawCalls, selectedModel, routes = [], lastStoredSt
     if (previous?.role === role && previous?.model === label) {
       previous.calls++;
       previous.tokens += call.totalTokens;
+      previous.lastStep = call.stepIndex ?? previous.lastStep;
       if (elapsed !== null) previous.durationMs = (previous.durationMs ?? 0) + elapsed;
     } else {
-      if (!includeTurns && run.timeline.length === 6) run.timeline.shift();
-      run.timeline.push({ role, model: label, calls: 1, tokens: call.totalTokens, durationMs: elapsed });
+      run.timeline.push({ role, model: label, calls: 1, tokens: call.totalTokens, durationMs: elapsed,
+        firstStep: call.stepIndex, lastStep: call.stepIndex });
     }
   }
   if (!active && !latest) return null;
-  const detail = (run) => ({
+  const detail = (run, full) => ({
     id: run.id, number: run.number, roles: { planner: run.planner.label, executor: run.executor.label },
-    usage: run.usage, timeline: run.timeline, durationMs: run.durationMs
+    usage: run.usage, timeline: full ? run.timeline : run.timeline.slice(-6), durationMs: run.durationMs
   });
   return {
     active,
     runs: runs.size,
     usage,
-    latest: latest && detail(latest),
-    ...(includeTurns ? { turns: [...runs.values()].map(detail) } : {})
+    latest: latest && detail(latest, includeTurns || includeProgress),
+    ...(includeTurns ? { turns: [...runs.values()].map((run) => detail(run, true)) } : {})
   };
 }
 
-module.exports = { computeOrchestration };
+function buildOrchestrationProgress(orchestration, { stepIndex, route, events = [], status } = {}) {
+  if (!orchestration?.active) return null;
+  const turn = Number.isInteger(stepIndex) && orchestration.latest?.id === `step-${stepIndex}` ? orchestration.latest : null;
+  const entries = events.map((event) => ({
+    ...event,
+    from: event.kind === 'handoff' ? 'planner' : event.kind === 'report' ? 'executor' : null,
+    to: event.kind === 'handoff' ? 'executor' : event.kind === 'report' ? 'planner' : null
+  }));
+  const phases = turn?.timeline || [];
+  for (let index = 0; index < phases.length; index++) {
+    const phase = phases[index];
+    const previous = phases[index - 1];
+    const from = previous?.role;
+    const to = phase.role;
+    if (phase.firstStep === null) continue;
+    if (from && from !== to && from !== 'unknown' && to !== 'unknown') {
+      const kind = from === 'planner' ? 'handoff' : 'report';
+      if (events.some((event) => event.kind === kind &&
+          event.stepIndex >= (previous.firstStep ?? stepIndex) && event.stepIndex <= phase.lastStep)) continue;
+      entries.push({ kind: 'switch', from, to, stepIndex: phase.firstStep });
+    } else {
+      entries.push({ kind: 'phase', to, model: phase.model, stepIndex: phase.firstStep });
+    }
+  }
+  entries.sort((a, b) => a.stepIndex - b.stepIndex);
+  const roles = turn?.roles ?? (route?.executor ? {
+    planner: describe(route.planner, new Map()).label, executor: describe(route.executor, new Map()).label
+  } : null);
+  return {
+    turn: Number.isInteger(stepIndex) ? stepIndex : null,
+    roles,
+    status: entries.length ? status === 'Running' ? 'running' : status === 'Error' ? 'error' : 'recorded' : 'waiting',
+    count: entries.length,
+    entries
+  };
+}
+
+module.exports = { computeOrchestration, buildOrchestrationProgress };
