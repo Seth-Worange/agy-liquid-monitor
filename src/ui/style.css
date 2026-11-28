@@ -359,6 +359,30 @@ h1, h2, h3 { font-weight: 600; }
 .filter-row .select { flex: 1; min-width: 0; }
 .select { padding: 10px 12px; max-width: 100%; }
 .select option { background: var(--bg); }
+@supports (appearance: base-select) {
+  .select, .select::picker(select) { appearance: base-select; }
+  .select {
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+  }
+  .select::picker-icon { color: var(--muted); }
+  .select::picker(select) {
+    margin-top: 4px;
+    padding: 4px;
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    background: var(--glass-strong);
+    box-shadow: 0 8px 24px var(--shadow);
+  }
+  .select option {
+    padding: 7px 9px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink);
+  }
+  .select option:hover, .select option:focus { background: var(--track); }
+}
 .subtle-button { padding: 7px 11px; }
 .detail-columns { display: grid; grid-template-columns: 1fr; gap: 20px; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 15px 12px; }

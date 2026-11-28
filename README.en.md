@@ -82,6 +82,8 @@ Open **Appearance Settings** from the title bar or the top right of the dashboar
 
 Choose **English** or **Simplified Chinese** under **Language**. The title bar, in-chat orchestration card, and sidebar share this setting. Conversation titles and recorded handoffs keep their original wording.
 
+Language, theme, and session selectors use rounded controls. Settings are stored locally and preserved when you upgrade.
+
 ## Installation
 
 Requires Antigravity Desktop 2.x and **Node.js 22.13 or later**. Both platforms share the status bar, Plugins dashboard, and calculations.
