@@ -80,6 +80,8 @@ The context trend marks model changes and measurements before and after compacti
 
 Open **Appearance Settings** from the title bar or the top right of the dashboard. Follow Antigravity's theme or choose light, dark, pink, or green. Pink and green follow the host's brightness. The sliders adjust glass transparency (0–65%) and blur strength (0–100%) in real time. Lower blur settings preserve background detail. You can restore the defaults. The title bar and dashboard share locally saved settings.
 
+Choose **English** or **Simplified Chinese** under **Language**. The title bar, in-chat orchestration card, and sidebar share this setting. Conversation titles and recorded handoffs keep their original wording.
+
 ## Installation
 
 Requires Antigravity Desktop 2.x and **Node.js 22.13 or later**. Both platforms share the status bar, Plugins dashboard, and calculations.

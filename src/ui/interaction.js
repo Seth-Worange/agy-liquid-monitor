@@ -1,8 +1,8 @@
 const renderedContent = new WeakMap();
 
-function createRefreshFeedback(button) {
+function createRefreshFeedback(button, t, title) {
   const icon = button.querySelector('svg');
-  const original = { viewBox: icon.getAttribute('viewBox'), paths: icon.innerHTML, title: button.title };
+  const original = { viewBox: icon.getAttribute('viewBox'), paths: icon.innerHTML };
   const status = document.createElement('span');
   status.className = 'visually-hidden';
   status.setAttribute('role', 'status');
@@ -11,7 +11,7 @@ function createRefreshFeedback(button) {
 
   function reset() {
     delete button.dataset.refreshState;
-    button.title = original.title;
+    button.title = t(title);
     status.textContent = '';
     icon.setAttribute('viewBox', original.viewBox);
     icon.innerHTML = original.paths;
@@ -24,7 +24,7 @@ function createRefreshFeedback(button) {
       reset();
       button.dataset.refreshState = 'loading';
       button.setAttribute('aria-disabled', 'true');
-      button.title = status.textContent = '正在刷新数据';
+      button.title = status.textContent = t('正在刷新数据');
       return true;
     },
     finish(success) {
@@ -33,7 +33,7 @@ function createRefreshFeedback(button) {
       button.dataset.refreshState = success ? 'success' : 'error';
       icon.setAttribute('viewBox', '0 0 16 16');
       icon.innerHTML = success ? '<path d="m3 8 3 3 7-7"/>' : '<path d="M8 3v6m0 3v.25"/>';
-      button.title = status.textContent = success ? '刷新成功' : '刷新失败，点击重试';
+      button.title = status.textContent = success ? t('刷新成功') : t('刷新失败，点击重试');
       resetTimer = setTimeout(reset, success ? 1200 : 2400);
     }
   };

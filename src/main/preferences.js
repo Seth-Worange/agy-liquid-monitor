@@ -12,12 +12,13 @@ const directory = path.join(base, 'AGY Liquid Monitor');
 const file = path.join(directory, 'appearance.json');
 
 function validate(settings) {
-  const { theme, opacity, blurStrength } = settings || {};
+  const { theme, opacity, blurStrength, language } = settings || {};
   if (!themes.includes(theme) || !Number.isInteger(opacity) || opacity < 35 || opacity > 100 ||
-    !Number.isInteger(blurStrength) || blurStrength < 0 || blurStrength > 100) {
+    !Number.isInteger(blurStrength) || blurStrength < 0 || blurStrength > 100 ||
+    (language !== undefined && !['zh-CN', 'en'].includes(language))) {
     throw new Error('无效的外观设置。');
   }
-  return { theme, opacity, blurStrength };
+  return { theme, opacity, blurStrength, ...(language === undefined ? {} : { language }) };
 }
 
 function readAppearance() {

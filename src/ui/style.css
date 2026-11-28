@@ -1,4 +1,18 @@
 @font-face { font-family: "AGY Gemini"; src: /* GEMINI_SOURCE */; font-weight: 500 650; font-display: swap; }
+@font-face {
+  font-family: "AGY Chinese";
+  src: local("Microsoft YaHei UI"), local("Microsoft YaHei"), local("PingFang SC Regular"),
+    local("PingFangSC-Regular"), local("Noto Sans CJK SC Regular");
+  font-weight: 100 550;
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF, U+20000-323AF;
+}
+@font-face {
+  font-family: "AGY Chinese";
+  src: local("Microsoft YaHei UI Bold"), local("Microsoft YaHei Bold"), local("PingFang SC Semibold"),
+    local("PingFangSC-Semibold"), local("Noto Sans CJK SC Bold");
+  font-weight: 551 900;
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF, U+20000-323AF;
+}
 
 :root, :host {
   color-scheme: dark;
@@ -82,7 +96,10 @@
   --violet: #366571;
 }
 
-:root { font-family: var(--agy-ui-font, "Google Sans", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif); }
+:root, :host {
+  font-family: "AGY Chinese", var(--agy-ui-font, "Google Sans", "Segoe UI Variable Text", "Segoe UI"),
+    "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+}
 .model-brand { font-weight: 560; }
 .model-brand.gemini { font-family: "AGY Gemini", "Google Sans Flex", "Google Sans", sans-serif; }
 .model-brand.claude { font-family: "Anthropic Serif", "Copernicus", Georgia, serif; }
@@ -183,6 +200,7 @@ h1, h2, h3 { font-weight: 600; }
 .appearance-panel { margin-top: 12px; padding: 14px; max-width: 400px; }
 .appearance-settings { display: grid; gap: 12px; }
 .appearance-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 8px; }
+.appearance-language { min-width: 98px; }
 .appearance-theme { width: min(150px, 100%); }
 .appearance-theme summary {
   display: flex;
@@ -358,6 +376,9 @@ h1, h2, h3 { font-weight: 600; }
 .status[data-status="Error"] { color: var(--red); }
 .empty { padding: 32px 23px; color: var(--muted); line-height: 1.65; }
 footer { justify-content: space-between; margin-top: 19px; color: var(--quiet); font-size: 11px; }
+:root[lang="zh-CN"] :is(.meta, .note, .line-label, .metric small, .summary-card h3) {
+  font-size: 13px;
+}
 
 @media (max-width: 780px) {
   .shell { padding: 25px 21px 20px; }
@@ -405,6 +426,10 @@ footer { justify-content: space-between; margin-top: 19px; color: var(--quiet); 
   .hero-chart { margin-top: 12px; }
   .hero-chart svg { height: 64px; }
   .summary-card { padding: 12px; }
+}
+@media (max-width: 450px) {
+  :root[lang="en"] .nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :root[lang="en"] .nav button { font-size: 12px; }
 }
 @media (max-width: 300px) {
   .header { flex-wrap: wrap; }

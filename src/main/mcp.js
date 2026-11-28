@@ -50,6 +50,7 @@ const tools = [
       type: 'object', additionalProperties: false, required: ['theme', 'opacity', 'blurStrength'],
       properties: {
         theme: { enum: themes },
+        language: { enum: ['zh-CN', 'en'] },
         opacity: { type: 'integer', minimum: 35, maximum: 100 },
         blurStrength: { type: 'integer', minimum: 0, maximum: 100 }
       }

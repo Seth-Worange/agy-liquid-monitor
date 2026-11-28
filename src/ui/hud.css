@@ -85,7 +85,8 @@
 .flow-expanded-label, .flow-entry[open] .flow-teaser { display: none; }
 .flow-entry[open] .flow-expanded-label { display: inline; }
 .flow-expand { display: inline-flex; margin-inline-start: auto; }
-.flow-entry p { margin: 3px 0 0; color: var(--muted); white-space: pre-wrap; line-height: 1.55; font-size: 11px; }
+.flow-entry p { margin: 3px 0 0; color: var(--muted); white-space: pre-wrap; line-height: 1.55; font-size: 12px; }
+.flow-teaser { font-size: 12px; }
 
 .status-bar {
   display: inline-flex;
@@ -185,6 +186,11 @@
 .hud-detail .ring.big { width: 40px; height: 40px; font-size: 11px; }
 .hud-detail .ring::before { mask-image: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); }
 .hud-detail .segmented button { padding-inline: 6px; font-size: 11px; }
+:host([lang="zh-CN"]) .status-button { font-size: 12px; }
+:host([lang="zh-CN"]) :is(.flow-state, .flow-teaser, .flow-entry p, .flow-expanded-label,
+  .hud-detail .meta, .hud-detail .line-value, .hud-detail .note, .hud-detail .metric small) {
+  font-size: 12px;
+}
 @media (prefers-reduced-motion: no-preference) {
   .flow-card .chevron { transition: rotate .16s ease; }
   .hud-popover {

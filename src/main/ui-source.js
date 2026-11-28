@@ -14,6 +14,7 @@ function readStyle() {
 function hudSource() {
   return `(() => {
     const stylesheet = ${JSON.stringify(readStyle() + '\n' + readUI('hud.css'))};
+    ${readUI('locale.js')}
     ${readUI('views.js')}
     ${readUI('interaction.js')}
     ${readUI('appearance.js')}

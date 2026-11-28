@@ -1,7 +1,6 @@
 'use strict';
 
 const $ = (selector) => document.querySelector(selector);
-const clock = new Intl.DateTimeFormat('zh-CN', {timeStyle: 'short'});
 const systemTheme = matchMedia('(prefers-color-scheme: light)');
 const demo = document.body.dataset.demo === 'true';
 const framed = window.parent !== window;
@@ -16,24 +15,35 @@ let busy = false;
 let refreshPending = false;
 let forcePending = false;
 let hostConnected = false;
-
-const { overview, sessionView, sessionDetail, contextDetail, agentDetail, quotaView, usageView, escape } = createMonitorViews(state);
+let renderedLanguage;
+let connectionState = { label: '连接中', status: 'offline' };
 
 const appearance = createAppearance(applyTheme, demo ? null : async (settings) => {
   if (!hostConnected) throw new Error('Antigravity is not connected');
   const response = await request('tools/call', { name: 'monitor_save_appearance', arguments: settings });
   if (response?.isError || !response?.structuredContent) throw new Error('Cannot save appearance');
 });
+const { t } = appearance;
+const { overview, sessionView, sessionDetail, contextDetail, agentDetail, quotaView, usageView, escape } =
+  createMonitorViews(state, t, () => appearance.language);
 const appearanceButton = $('#appearance');
 const appearancePanel = $('#appearance-panel');
 const refreshButton = $('#refresh');
-const refreshFeedback = createRefreshFeedback(refreshButton);
+const refreshFeedback = createRefreshFeedback(refreshButton, t, '刷新数据');
 appearanceButton.querySelector('svg').innerHTML = appearance.icon;
 appearancePanel.innerHTML = appearance.markup;
 appearance.bind(appearancePanel);
 
 function applyTheme() {
   appearance.apply(document.documentElement, hostTheme || (systemTheme.matches ? 'light' : 'dark'));
+  if (renderedLanguage === appearance.language) return;
+  renderedLanguage = appearance.language;
+  localizeMonitorMarkup(document, t);
+  connection(connectionState.label, connectionState.status);
+  if (result) {
+    render(result);
+    renderDataSource(result);
+  }
 }
 function applyHostContext(hostContext = {}) {
   if (hostContext?.theme === 'light' || hostContext?.theme === 'dark') hostTheme = hostContext.theme;
@@ -89,10 +99,24 @@ window.addEventListener('message', (event) => {
 });
 
 function connection(label, status) {
+  connectionState = { label, status };
   const node = $('#connection');
-  if (node.textContent !== label) node.textContent = label;
+  const translated = t(label);
+  if (node.textContent !== translated) node.textContent = translated;
   if (node.dataset.state !== status) node.dataset.state = status;
-  node.title = status === 'stale' && result ? '保留上次数据 · ' + clock.format(result.updatedAt) : label;
+  node.title = status === 'stale' && result ? t('保留上次数据 · {0}', formatTime(result.updatedAt)) : translated;
+}
+
+function formatTime(timestamp) {
+  return new Intl.DateTimeFormat(appearance.language, { timeStyle: 'short' }).format(timestamp);
+}
+
+function renderDataSource(data) {
+  const failures = data.sources?.errors;
+  $('#source').textContent = demo ? t('数据来源 · 演示样本') :
+    t('数据来源 · {0} 个本地会话库', data.sources.databases) + (failures ? ' · ' + t('{0} 个读取失败', failures) : '');
+  $('#updated').textContent = t('更新于 {0}', formatTime(data.updatedAt));
+  $('#updated').dateTime = new Date(data.updatedAt).toISOString();
 }
 
 function showContent(html) {
@@ -117,7 +141,7 @@ async function readData(force) {
   if (!demo && !framed) throw new Error('请从 Antigravity 插件菜单打开看板，或运行 npm run preview。');
   if (!demo && !hostConnected) {
     const init = await request('ui/initialize', {
-      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.6' },
+      appInfo: { name: 'AGY Liquid Monitor', version: '0.3.7' },
       appCapabilities: {}, protocolVersion: '2026-01-26'
     });
     applyHostContext(init?.hostContext);
@@ -161,17 +185,14 @@ async function refresh(force = false) {
     if (demo) connection('演示数据', 'demo');
     else if (data.quota.online) connection('已连接', 'online');
     else connection(data.sources.present ? '本地记录' : '无本地记录', 'offline');
-    $('#source').textContent = demo ? '数据来源 · 演示样本' :
-      `数据来源 · ${data.sources.databases} 个本地会话库${data.sources.errors ? ` · ${data.sources.errors} 个读取失败` : ''}`;
-    $('#updated').textContent = `更新于 ${clock.format(data.updatedAt)}`;
-    $('#updated').dateTime = new Date(data.updatedAt).toISOString();
+    renderDataSource(data);
     if (force) refreshFeedback.finish(true);
   } catch (error) {
     if (force) refreshFeedback.finish(false);
     connection(result ? '保留旧数据' : '读取失败', result ? 'stale' : 'error');
-    if (!result) showContent(`<section class="surface empty">${escape(error.message)}</section>`);
+    if (!result) showContent(`<section class="surface empty">${escape(t(error.message))}</section>`);
     else if (content.querySelector('[data-loading-context]')) {
-      showContent('<section class="surface empty">暂时无法读取上下文，点击右上角刷新重试。</section>');
+      showContent(`<section class="surface empty">${t('暂时无法读取上下文，点击右上角刷新重试。')}</section>`);
     }
   } finally {
     content.setAttribute('aria-busy', 'false');
@@ -193,7 +214,7 @@ function go(view) {
     else button.removeAttribute('aria-current');
   }
   if (view === 'context' && result?.panels.some((panel) => !panel.context)) {
-    showContent('<section class="surface empty" data-loading-context>正在读取上下文…</section>');
+    showContent(`<section class="surface empty" data-loading-context data-i18n="正在读取上下文…">${t('正在读取上下文…')}</section>`);
   } else if (result) render(result);
   void refresh();
 }

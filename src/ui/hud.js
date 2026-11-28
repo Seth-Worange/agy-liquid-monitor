@@ -8,8 +8,9 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
       .then((font) => document.fonts.add(font)).catch(() => {});
   }
   const state = { period: '30D', date: null, heatPage: 0 };
-  const views = createMonitorViews(state);
-  const appearance = createAppearance(applyAppearance, api.saveAppearance && ((settings) => api.saveAppearance(settings)));
+  const appearance = createAppearance(onAppearanceChange, api.saveAppearance && ((settings) => api.saveAppearance(settings)));
+  const { t } = appearance;
+  const views = createMonitorViews(state, t, () => appearance.language);
   const labels = { session: '会话', context: '上下文', agents: '子代理', quota: '模型额度', usage: '历史用量', appearance: '外观设置' };
   const validId = /^[a-z0-9][a-z0-9-]{0,127}$/i;
   const systemTheme = matchMedia('(prefers-color-scheme: light)');
@@ -47,10 +48,10 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const bar = host({ 'data-hud-bar': kind, 'data-agy-liquid': '' });
     bar.sections = sections;
     bar.id = null;
-    bar.root.innerHTML = `<div class="status-bar" role="group" aria-label="${kind === 'top' ? 'Antigravity 用量' : '当前会话监控'}">${sections.map((key, index) =>
+    bar.root.innerHTML = `<div class="status-bar" role="group" data-i18n-label="${kind === 'top' ? 'Antigravity 用量' : '当前会话监控'}">${sections.map((key, index) =>
       `${kind === 'top' && index ? '<span class="status-divider" aria-hidden="true"></span>' : ''}
-      <button class="status-button" type="button" data-section="${key}" aria-label="${labels[key]}" aria-haspopup="dialog"
-        aria-expanded="false" title="${labels[key]}"></button>`).join('')}</div>`;
+      <button class="status-button" type="button" data-section="${key}" aria-haspopup="dialog"
+        aria-expanded="false"></button>`).join('')}</div>`;
     bar.root.addEventListener('click', (event) => {
       const button = event.target.closest('[data-section]');
       if (!button || button.getAttribute('aria-disabled') === 'true') return;
@@ -64,7 +65,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   function makeProgressCard() {
     const card = host({ 'data-hud-orchestration': '', 'data-agy-liquid': '', hidden: '' });
     card.root.innerHTML = `<details class="flow-card">
-      <summary><span class="flow-title">${icon('session')} 编排进度</span><span class="flow-state" aria-live="polite"></span>${icon('chevron')}</summary>
+      <summary><span class="flow-title">${icon('session')}<span data-i18n="编排进度"></span></span><span class="flow-state" aria-live="polite"></span>${icon('chevron')}</summary>
       <div class="flow-body"></div>
     </details>`;
     return card;
@@ -77,29 +78,29 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     if (el.hidden) return;
     const progress = result?.panels.find((panel) => panel.main.conversationId === bar.id)?.orchestrationProgress;
     const badge = root.querySelector('.flow-state');
-    const statuses = { waiting: '等待本轮记录', running: '进行中', error: '运行异常', recorded: '本轮记录' };
+    const statuses = { waiting: t('等待本轮记录'), running: t('进行中'), error: t('运行异常'), recorded: t('本轮记录') };
     const status = progress?.status || 'waiting';
-    const badgeText = statuses[status] + (progress?.count ? ` · ${progress.count} 个节点` : '');
+    const badgeText = statuses[status] + (progress?.count ? ' · ' + t('{0} 个节点', progress.count) : '');
     if (badge.textContent !== badgeText) badge.textContent = badgeText;
     badge.dataset.status = status;
-    const roleNames = { planner: '规划模型', executor: '执行模型', unknown: '角色未区分' };
+    const roleNames = { planner: t('规划模型'), executor: t('执行模型'), unknown: t('角色未区分') };
     const model = (role) => views.modelName(progress?.roles?.[role] || roleNames[role]);
-    const actions = { handoff: '交办', report: '执行回报', switch: '接手', phase: '模型调用' };
+    const actions = { handoff: t('交办'), report: t('执行回报'), switch: t('接手'), phase: t('模型调用') };
     const body = root.querySelector('.flow-body');
     const entries = progress?.entries || [];
     const html = entries.length ? `
       <ol class="flow-list">${entries.map((entry) => {
         const name = entry.from ? `${model(entry.from)} <span class="flow-arrow" aria-hidden="true">→</span> ${model(entry.to)}`
-          : entry.to ? views.modelName(entry.model || roleNames[entry.to]) : '进度复审';
+          : entry.to ? views.modelName(entry.model || roleNames[entry.to]) : t('进度复审');
         const description = entry.text?.split(/\r?\n/).map((line) => line.replace(/^\s*[#>*-]+\s*/, '').trim())
           .filter(Boolean).slice(0, 2).join(' ');
         const teaser = description && description.length > 110 ? description.slice(0, 110).trimEnd() + '…' : description;
         const key = `${entry.kind}-${entry.stepIndex}`;
         return `<li data-phase="${entry.to || 'review'}"><div class="flow-heading"><strong>${name}</strong>${actions[entry.kind] ? `<span>${actions[entry.kind]}</span>` : ''}</div>
-          ${teaser ? `<details class="flow-entry" data-flow-entry="${key}"><summary><span class="flow-teaser">${views.escape(teaser)}</span><span class="flow-expanded-label">收起内容</span><span class="flow-expand">${icon('chevron')}</span></summary>
+          ${teaser ? `<details class="flow-entry" data-flow-entry="${key}"><summary><span class="flow-teaser">${views.escape(teaser)}</span><span class="flow-expanded-label">${t('收起内容')}</span><span class="flow-expand">${icon('chevron')}</span></summary>
             <p>${views.escape(entry.text)}</p></details>` : ''}
         </li>`;
-      }).join('')}</ol>` : '<p class="note">Antigravity 记录本轮模型调用或交接后，会在这里显示。</p>';
+      }).join('')}</ol>` : `<p class="note">${t('Antigravity 记录本轮模型调用或交接后，会在这里显示。')}</p>`;
     if (bar.flow.markup === html) return;
     const expanded = new Set([...body.querySelectorAll('.flow-entry[open]')].map((entry) => entry.dataset.flowEntry));
     const focused = root.activeElement?.closest('.flow-entry')?.dataset.flowEntry;
@@ -115,14 +116,14 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   const portal = host({ 'data-agy-liquid-panel': '' });
   portal.root.innerHTML = `<section class="hud-popover" role="dialog" aria-modal="false" aria-labelledby="hud-title" popover="manual">
     <header class="hud-heading"><div><h2 id="hud-title"></h2><small class="hud-subtitle"></small></div>
-    <div class="hud-actions"><button type="button" class="icon-button" data-refresh title="刷新" aria-label="刷新">${icon('refresh')}</button>
-    <button type="button" class="icon-button" data-close title="关闭" aria-label="关闭">${icon('close')}</button></div></header>
+    <div class="hud-actions"><button type="button" class="icon-button" data-refresh data-i18n-title="刷新" data-i18n-label="刷新">${icon('refresh')}</button>
+    <button type="button" class="icon-button" data-close data-i18n-title="关闭" data-i18n-label="关闭">${icon('close')}</button></div></header>
     <div class="hud-detail"></div></section>`;
   document.body.append(portal.el);
   const popover = portal.root.querySelector('.hud-popover');
   const detail = portal.root.querySelector('.hud-detail');
   const refreshButton = portal.root.querySelector('[data-refresh]');
-  const refreshFeedback = createRefreshFeedback(refreshButton);
+  const refreshFeedback = createRefreshFeedback(refreshButton, t, '刷新');
 
   function miniRing(value, color = 'cyan') {
     const fraction = Number.isFinite(value) ? Math.min(100, Math.max(0, value * 100)) : 0;
@@ -136,16 +137,18 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const rings = result?.quota.summaryRings;
     const color = { green: 'green', orange: 'amber', red: 'red' }[water?.level] || 'blue';
     const values = {
-      session: [icon('session'), panel?.orchestration?.active ? '编排' : '会话', views.tokens(panel?.totalTokens)],
-      context: [water?.ratio != null ? miniRing(water.ratio, color) : icon('context'), '上下文',
-        water?.awaitingMeasurement ? '待测量' :
+      session: [icon('session'), panel?.orchestration?.active ? t('编排') : t('会话'), views.tokens(panel?.totalTokens)],
+      context: [water?.ratio != null ? miniRing(water.ratio, color) : icon('context'), t('上下文'),
+        water?.awaitingMeasurement ? t('待测量') :
           views.percent(water?.ratio) + (panel?.main.compaction.count ? ` · ${panel.main.compaction.count}×` : '')],
-      agents: [icon('agents'), '子代理', agents?.totalCount ? `${agents.runningCount}/${agents.totalCount}` : panel ? '0' : '—'],
-      usage: [icon('usage'), '今日', views.tokens(result?.usage.today.totalTokens)]
+      agents: [icon('agents'), t('子代理'), agents?.totalCount ? `${agents.runningCount}/${agents.totalCount}` : panel ? '0' : '—'],
+      usage: [icon('usage'), t('今日'), views.tokens(result?.usage.today.totalTokens)]
     };
     for (const key of bar.sections) {
       const button = bar.root.querySelector(`[data-section="${key}"]`);
+      button.title = t(labels[key]);
       if (key === 'appearance') {
+        button.setAttribute('aria-label', button.title);
         if (!button.firstElementChild) button.innerHTML = icon('appearance');
         continue;
       }
@@ -156,8 +159,8 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         : `${values[key][0]}<span class="${bar === top ? '' : 'optional'}">${values[key][1]}</span><strong>${values[key][2]}</strong>`;
       if (button.innerHTML !== readout) button.innerHTML = readout;
       button.setAttribute('aria-label', key === 'quota'
-        ? `模型额度，5 小时 ${views.percent(rings?.window5h?.remainingFraction)}，7 天 ${views.percent(rings?.window7d?.remainingFraction)}`
-        : `${key === 'session' ? values[key][1] : labels[key]} ${values[key][2]}`);
+        ? t('模型额度，5 小时 {0}，7 天 {1}', views.percent(rings?.window5h?.remainingFraction), views.percent(rings?.window7d?.remainingFraction))
+        : `${key === 'session' ? values[key][1] : button.title} ${values[key][2]}`);
     }
   }
 
@@ -277,8 +280,24 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
 
   function applyAppearance() {
     const theme = detectTheme();
-    for (const bar of [top, ...composerBars.values(), portal]) appearance.apply(bar.el, theme);
-    for (const bar of composerBars.values()) if (bar.flow) appearance.apply(bar.flow.el, theme);
+    const font = getComputedStyle(document.body).fontFamily;
+    const cards = [...composerBars.values()];
+    for (const bar of [top, ...cards, portal, ...cards.map((item) => item.flow).filter(Boolean)]) {
+      if (bar.el.style.getPropertyValue('--agy-ui-font') !== font) bar.el.style.setProperty('--agy-ui-font', font);
+      if (bar.el.lang !== appearance.language) localizeMonitorMarkup(bar.root, t);
+      appearance.apply(bar.el, theme);
+    }
+  }
+
+  function onAppearanceChange() {
+    const languageChanged = portal.el.lang !== appearance.language;
+    applyAppearance();
+    if (!languageChanged) return;
+    paintBars();
+    if (open) {
+      portal.root.querySelector('#hud-title').textContent = t(labels[open.section]);
+      renderPanel();
+    }
   }
 
   function paintBars() {
@@ -317,7 +336,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     button.setAttribute('aria-expanded', 'true');
     portal.el.style.fontFamily = getComputedStyle(bar.el).fontFamily;
     popover.dataset.popover = section;
-    portal.root.querySelector('#hud-title').textContent = labels[section];
+    portal.root.querySelector('#hud-title').textContent = t(labels[section]);
     refreshButton.hidden = section === 'appearance';
     if (section === 'appearance') {
       portal.root.querySelector('.hud-subtitle').textContent = '';
@@ -340,7 +359,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
       ? views.modelName(panel.main.latestModel?.displayName || '') +
         (panel.main.latestModel?.effort ? ` · ${views.escape(panel.main.latestModel.effort)}` : '')
       : '';
-    let html = '<p class="note">正在读取 Antigravity 数据…</p>';
+    let html = `<p class="note">${t('正在读取 Antigravity 数据…')}</p>`;
     if (result) {
       const templates = {
         session: () => panel && views.sessionDetail(panel),
@@ -350,7 +369,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
         usage: () => views.usageView(result.usage, result.quota.profile)
       };
       html = templates[open.section]() || (open.id && !panel
-        ? '<p class="note">当前会话还没有可读取的模型调用。</p>' : html);
+        ? `<p class="note">${t('当前会话还没有可读取的模型调用。')}</p>` : html);
     }
     renderWithFocus(detail, html, () => detail.querySelector('.heat-cell[tabindex="0"]') ||
       portal.root.querySelector('[data-close]'));
@@ -382,7 +401,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     } catch {
       if (force) refreshFeedback.finish(false);
       if (open && open.section !== 'appearance' && !result) {
-        renderWithFocus(detail, '<p class="note">暂时无法读取数据。可点击刷新重试。</p>');
+        renderWithFocus(detail, `<p class="note">${t('暂时无法读取数据。可点击刷新重试。')}</p>`);
       }
     } finally {
       pending = false;

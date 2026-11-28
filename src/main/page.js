@@ -24,7 +24,7 @@ function renderPage({ demo = false } = {}) {
       });
     </script>`);
   }
-  return html.replace('/* JAVASCRIPT */', () => ['views.js', 'interaction.js', 'appearance.js', 'app.js'].map(read).join('\n'));
+  return html.replace('/* JAVASCRIPT */', () => ['locale.js', 'views.js', 'interaction.js', 'appearance.js', 'app.js'].map(read).join('\n'));
 }
 
 module.exports = { renderPage };

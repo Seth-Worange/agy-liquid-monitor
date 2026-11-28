@@ -68,4 +68,8 @@ test('dashboard accepts an explicit conversation and saves only valid local appe
   assert.deepEqual(call('monitor_save_appearance', settings).structuredContent, settings);
   assert.equal(call('monitor_save_appearance', { ...settings, opacity: 10 }).isError, true);
   assert.deepEqual(call('monitor_snapshot', {}).structuredContent.appearance, settings);
+  const english = { ...settings, language: 'en' };
+  assert.deepEqual(call('monitor_save_appearance', english).structuredContent, english);
+  assert.equal(call('monitor_save_appearance', { ...settings, language: 'fr' }).isError, true);
+  assert.deepEqual(call('monitor_snapshot', {}).structuredContent.appearance, english);
 });
