@@ -37,6 +37,9 @@ ipcMain.handle(channel, (event, params) => {
   const query = {
     ids: Array.isArray(params?.ids) ? params.ids.slice(0, 4) : [],
     currentModel: typeof params?.currentModel === 'string' ? params.currentModel.slice(0, 120) : null,
+    modelSelections: Array.isArray(params?.modelSelections) ? params.modelSelections.slice(0, 4)
+      .filter((pair) => Array.isArray(pair) && typeof pair[0] === 'string' && typeof pair[1] === 'string')
+      .map(([id, model]) => [id.slice(0, 128), model.slice(0, 120)]) : [],
     period: params?.period,
     date: params?.date,
     context: params?.context === true,

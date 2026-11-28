@@ -106,13 +106,13 @@ test('pricing: calculates USD accurately across date transitions, Neon, and prom
   assert.equal(unknownCost.label, 'Unpriced');
 });
 
-test('pricing: calculateSessionCost enforces single primary model per session', () => {
+test('pricing: each call uses its model and unpriced usage stays separate', () => {
   const calls = [
     { inputTokens: 100000, cacheReadTokens: 0, outputTokens: 10000, dateKey: '2026-11-24' },
     { inputTokens: 100000, cacheReadTokens: 0, outputTokens: 10000, dateKey: '2026-11-24' }
   ];
 
-  // Primary model is unknown -> entire session is Unpriced even if later calls switched
+  // Calls without model metadata use the primary model.
   const unknownSess = pricing.calculateSessionCost(calls, 'Custom Unknown Model (High)');
   assert.equal(unknownSess.priced, false);
   assert.equal(unknownSess.costUsd, null);
@@ -126,6 +126,14 @@ test('pricing: calculateSessionCost enforces single primary model per session', 
   const carbonSess = pricing.calculateSessionCost(calls, 'Gemini 4 Carbon (Medium)');
   assert.equal(carbonSess.priced, true);
   assert.ok(Math.abs(carbonSess.costUsd - 0.6) < 1e-9);
+
+  const mixed = pricing.calculateSessionCost([
+    { ...calls[0], modelInput: 'Gemini 4 Neon (High)' },
+    { ...calls[1], modelInput: 'Gemini 4 Carbon (Medium)' },
+    { ...calls[1], modelInput: 'Custom Unknown Model (High)', totalTokens: 110000 }
+  ], 'Gemini 4 Neon (High)');
+  assert.ok(Math.abs(mixed.costUsd - 0.75) < 1e-9);
+  assert.equal(mixed.unpricedTokens, 110000);
 });
 
 test('pricing: setDynamicPricing overrides existing rates, adds new models, and rejects malformed rules', () => {

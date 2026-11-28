@@ -185,6 +185,12 @@ function extractEffortSuffix(name) {
   return null;
 }
 
+function modelEnumNumber(value) {
+  if (Number.isInteger(value) && value > 0) return value;
+  const placeholder = typeof value === 'string' && /^MODEL_PLACEHOLDER_M(\d+)$/i.exec(value);
+  return placeholder ? 1000 + Number(placeholder[1]) : null;
+}
+
 function matchModelFamily(raw) {
   if (!raw || typeof raw !== 'string') return null;
   const s = raw.trim().toLowerCase();
@@ -241,7 +247,8 @@ function resolveModelIdentity(input) {
     candidates = [rawName];
   } else if (typeof input === 'object') {
     const cm = input.chatModel || input;
-    const enumFallback = Number.isFinite(Number(cm.modelNum)) ? MODEL_ENUM_FALLBACK[Number(cm.modelNum)] : '';
+    const number = modelEnumNumber(Number(cm.modelNum)) ?? modelEnumNumber(cm.model) ?? modelEnumNumber(cm.modelEnum);
+    const enumFallback = MODEL_ENUM_FALLBACK[number];
     candidates = [
       cm.modelDisplayName,
       cm.label,
@@ -398,37 +405,38 @@ function calculateCallCost(usage, modelInput, { dateKey = null } = {}) {
   };
 }
 
-/**
- * Price an entire session using its single primary model (first valid call).
- * Mid-session model switches do not create blended pricing.
- */
+function resolveCallModel(call, fallback) {
+  const model = resolveModelIdentity(call.modelInput);
+  const response = call.modelInput?.responseModel;
+  if (response && /^orchestrator\b/i.test(model.rawName)) {
+    const actual = resolveModelIdentity(response);
+    if (actual.isPriced) return actual;
+  }
+  return model.modelKey === 'unknown' ? fallback : model;
+}
+
 function calculateSessionCost(calls, primaryModelInput) {
   const model = resolveModelIdentity(primaryModelInput);
-  if (!model.isPriced) {
-    return {
-      priced: false,
-      costUsd: null,
-      pricingKey: null,
-      modelKey: model.modelKey,
-      displayName: model.displayName,
-      label: 'Unpriced'
-    };
-  }
-
-  let totalCostUsd = 0;
+  let costUsd = null;
+  let unpricedTokens = 0;
+  const pricingKeys = new Set();
   for (const call of calls || []) {
-    const res = calculateCallCost(call, model, { dateKey: call?.dateKey || null });
+    const res = calculateCallCost(call, resolveCallModel(call, model), { dateKey: call.dateKey });
     if (res.priced && res.costUsd !== null) {
-      totalCostUsd += res.costUsd;
+      costUsd = (costUsd ?? 0) + res.costUsd;
+      pricingKeys.add(res.pricingKey);
+    } else {
+      unpricedTokens += call.totalTokens ?? 0;
     }
   }
 
   return {
-    priced: true,
-    costUsd: totalCostUsd,
-    pricingKey: model.pricingKey,
+    priced: costUsd !== null,
+    costUsd,
+    pricingKey: pricingKeys.size === 1 ? pricingKeys.values().next().value : null,
     modelKey: model.modelKey,
-    displayName: model.displayName
+    displayName: model.displayName,
+    unpricedTokens
   };
 }
 
@@ -440,7 +448,9 @@ module.exports = {
   clearDynamicPricing,
   getEffectivePricingTable,
   extractEffortSuffix,
+  modelEnumNumber,
   resolveModelIdentity,
+  resolveCallModel,
   getPriceRule,
   calculateCallCost,
   calculateSessionCost

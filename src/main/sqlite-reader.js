@@ -6,7 +6,7 @@ const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { pathToFileURL } = require('node:url');
 
-const { parseRawSummary, parseStepMetadata, parseGenMetadata } = require('../core/pb');
+const { parseRawSummary, parseStepMetadata, parseGenMetadata, parseUserInputRoute } = require('../core/pb');
 const { resolveModelIdentity } = require('../core/pricing');
 const { computeContextBreakdown } = require('../core/context');
 const {
@@ -156,6 +156,12 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
     const stepRows = db
       .prepare('SELECT idx, step_type, status, metadata, error_details FROM steps ORDER BY idx ASC')
       .all();
+    const hasStepPayload = db.prepare("SELECT 1 FROM pragma_table_info('steps') WHERE name = 'step_payload'").get();
+    const routes = hasStepPayload
+      ? db.prepare('SELECT idx, step_payload FROM steps WHERE step_type = 14 ORDER BY idx ASC').all().flatMap((row) => {
+        const route = parseUserInputRoute(row.step_payload);
+        return route ? [{ stepIndex: row.idx, ...route }] : [];
+      }) : [];
 
     let turns = 0;
     let checkpointCount = 0;
@@ -205,6 +211,10 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
 
       calls.push({
         idx: gm.idx,
+        executionId: parsed.executionId,
+        responseId: cm.usage.responseId,
+        stepIndices: parsed.stepIndices,
+        orchestrator: parsed.orchestrator,
         stepIndex,
         timestampMs,
         dateKey: timestampMs !== null ? toLocalDateKey(timestampMs) : null,
@@ -239,6 +249,8 @@ function readConversationDb(dbPath, { includeContext = false, fallbackTimestampM
       turns,
       checkpointCount,
       lastCheckpointStep,
+      lastStepIndex: stepRows.at(-1)?.idx ?? null,
+      routes,
       errorStepCount,
       lastStepHasError,
       calls,
@@ -343,6 +355,8 @@ function scanConversationsIncremental({ dataDir = DEFAULT_DATA_DIR, entries = ne
       lastStepHasError: Boolean(dbData.lastStepHasError),
       checkpointCount: dbData.checkpointCount || 0,
       lastCheckpointStep: dbData.lastCheckpointStep ?? null,
+      lastStepIndex: dbData.lastStepIndex,
+      routes: dbData.routes,
       primaryModel,
       calls
     });

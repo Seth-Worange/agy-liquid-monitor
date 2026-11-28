@@ -35,6 +35,7 @@ See remaining model quota, session tokens, context usage, and subagent activity 
 - **Chat composer** shows session tokens, turns, model calls, cache hit rate, time to first token, and output speed.
 - **Context panel** shows context window usage, compaction history, and estimated usage by category, including system prompts, rules, MCP tools, and messages.
 - **Subagent panel** shows status, model, and context usage for each subagent.
+- **Orchestrator** shows the latest turn's planner and executor, usage by role, and model call sequence in session details. Conversations with multiple orchestration turns also show cumulative usage. Calls with an ambiguous role are listed separately.
 - **Plugins dashboard** shows quota, sessions, and usage history for the last 7 days, the last 30 days, or all recorded activity.
 - **Native styling** uses the host's typography and a translucent glass surface.
 

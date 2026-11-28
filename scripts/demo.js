@@ -4,6 +4,7 @@ const { buildQuotaSnapshot } = require('../src/core/quota');
 const { computeSessionStats, combineSessionWithSubagents } = require('../src/core/session');
 const { CONTEXT_CATEGORIES } = require('../src/core/context');
 const { computeUsageReport } = require('../src/core/usage');
+const { computeOrchestration } = require('../src/core/orchestration');
 
 function demoData(nowMs = Date.now()) {
   const conversations = [
@@ -46,8 +47,17 @@ function demoData(nowMs = Date.now()) {
       normalizedStatus
     })) : [];
     const breakdown = [0.09, 0.08, 0.06, 0.14, 0.63];
+    const orchestration = index === 0 ? computeOrchestration(sess.calls.slice(-5).map((call, i) => ({
+      ...call, stepIndex: i + 1,
+      modelDisplayName: i === 0 ? 'Gemini 4 Neon (Medium)' : i === 2 || i === 4
+        ? 'Gemini 4 Carbon (Medium)' : 'Gemini 4 Hydrogen (High)'
+    })), 'Orchestrator', [
+      { stepIndex: 1, planner: 'Gemini 4 Neon (Medium)', executor: 'Gemini 4 Hydrogen (High)' },
+      { stepIndex: 3, planner: 'Gemini 4 Carbon (Medium)', executor: 'Gemini 4 Hydrogen (High)' }
+    ], 5) : null;
     return {
       ...combineSessionWithSubagents(main, children), live: index === 0,
+      orchestration,
       context: {
         breakdownAvailable: true,
         categories: CONTEXT_CATEGORIES.map((category, i) => ({

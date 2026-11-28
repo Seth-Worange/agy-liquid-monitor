@@ -29,6 +29,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
   let open = null;
   let ids = [];
   let model = null;
+  let modelSelections = [];
   let pending = false;
   let queued = false;
   let forceQueued = false;
@@ -85,7 +86,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const rings = result?.quota.summaryRings;
     const color = { green: 'green', orange: 'amber', red: 'red' }[water?.level] || 'blue';
     const values = {
-      session: [icon('session'), '会话', views.tokens(panel?.totalTokens)],
+      session: [icon('session'), panel?.orchestration?.active ? '编排' : '会话', views.tokens(panel?.totalTokens)],
       context: [water?.ratio != null ? miniRing(water.ratio, color) : icon('context'), '上下文',
         water?.awaitingMeasurement ? '待测量' :
           views.percent(water?.ratio) + (panel?.main.compaction.count ? ` · ${panel.main.compaction.count}×` : '')],
@@ -106,7 +107,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
       if (button.innerHTML !== readout) button.innerHTML = readout;
       button.setAttribute('aria-label', key === 'quota'
         ? `模型额度，5 小时 ${views.percent(rings?.window5h?.remainingFraction)}，7 天 ${views.percent(rings?.window7d?.remainingFraction)}`
-        : `${labels[key]} ${values[key][2]}`);
+        : `${key === 'session' ? values[key][1] : labels[key]} ${values[key][2]}`);
     }
   }
 
@@ -161,6 +162,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     const fromRoute = routeIds();
     const focusedRoute = new URLSearchParams(location.search).get('focused');
     const active = [];
+    const selections = [];
     let preferredModel = null;
     triggers.forEach((trigger, index) => {
       const footer = trigger.closest('.agy-composer-footer');
@@ -189,18 +191,23 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
           else parent.append(bar.el);
         }
       }
-      if (bar.id) focused ? active.unshift(bar.id) : active.push(bar.id);
+      const selectedModel = trigger.getAttribute('aria-label')?.match(/current:\s*(.+)$/i)?.[1] || trigger.textContent?.trim();
+      if (bar.id) {
+        focused ? active.unshift(bar.id) : active.push(bar.id);
+        if (selectedModel) selections.push([bar.id, selectedModel]);
+      }
       if (focused || !preferredModel) {
-        preferredModel = trigger.getAttribute('aria-label')?.match(/current:\s*(.+)$/i)?.[1] || trigger.textContent?.trim();
+        preferredModel = selectedModel;
       }
     });
     applyAppearance();
     if (open && (!open.button.isConnected || open.bar.id !== open.id)) closePanel(false);
     reposition();
     const nextIds = [...new Set(active)].slice(0, 4);
-    if (nextIds.join(',') !== ids.join(',') || preferredModel !== model) {
+    if (nextIds.join(',') !== ids.join(',') || preferredModel !== model || JSON.stringify(selections) !== JSON.stringify(modelSelections)) {
       ids = nextIds;
       model = preferredModel;
+      modelSelections = selections;
       revision++;
       void refresh();
     }
@@ -299,7 +306,7 @@ function mountLiquidMonitor(api, stylesheet, geminiFont) {
     try {
       const data = await api.snapshot({
         ids, period: state.period, date: state.date, context: open?.section === 'context',
-        currentModel: model, fallback: false, force
+        currentModel: model, modelSelections, fallback: false, force
       });
       appearance.receive(data.appearance, checkpoint);
       if (requestRevision === revision) {

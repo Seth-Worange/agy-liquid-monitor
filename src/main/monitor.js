@@ -5,8 +5,9 @@ const path = require('node:path');
 const { CONTEXT_CATEGORIES, computeContextBreakdown } = require('../core/context');
 const { buildQuotaSnapshot, lookupContextLimit } = require('../core/quota');
 const { resolveModelIdentity } = require('../core/pricing');
-const { callStepIndex, combineSessionWithSubagents, computeSessionStats, normalizeSubagentStatus } = require('../core/session');
+const { callStepIndex, combineSessionWithSubagents, computeSessionStats, mergeConversationCalls, normalizeSubagentStatus } = require('../core/session');
 const { computeUsageReport } = require('../core/usage');
+const { computeOrchestration } = require('../core/orchestration');
 const { liveHub, readHub } = require('./hub');
 const { readAppearance } = require('./preferences');
 const { DEFAULT_DATA_DIR, scanConversationsIncremental, readConversationDb } = require('./sqlite-reader');
@@ -99,6 +100,7 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
     const available = [...main.values()].filter((row) => sessionId.test(row.conversationId))
       .sort((a, b) => b.lastModifiedMs - a.lastModifiedMs);
     const requested = Array.isArray(query.ids) ? query.ids.slice(0, 4) : [];
+    const modelSelections = Array.isArray(query.modelSelections) ? query.modelSelections.slice(0, 4) : [];
     const selected = [...new Set(requested)].filter((id) => typeof id === 'string' && sessionId.test(id) && main.has(id));
     const recent = available.slice(0, 150);
     const visible = new Set(recent.map((row) => row.conversationId));
@@ -124,13 +126,17 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
       const meta = main.get(id);
       const database = byId.get(id);
       const liveCalls = models[index];
-      const mainStats = statsFor(meta, database, liveCalls.length ? liveCalls : database?.calls || [], quota.clientModelConfigs);
+      const calls = mergeConversationCalls(database?.calls || [], liveCalls);
+      const mainStats = statsFor(meta, database, calls, quota.clientModelConfigs);
+      const selection = modelSelections.find((pair) => Array.isArray(pair) && pair[0] === id)?.[1] ||
+        (index === 0 ? query.currentModel : null);
+      const orchestration = computeOrchestration(calls, selection, database?.routes, database?.lastStepIndex);
       const children = (summaries.childrenByRoot.get(id) || [])
         .filter((child) => child.conversationId !== id)
         .map((child) => {
           const stored = byId.get(child.conversationId);
           const live = childCalls.get(child.conversationId);
-          return statsFor(child, stored, live?.length ? live : stored?.calls || [], quota.clientModelConfigs);
+          return statsFor(child, stored, mergeConversationCalls(stored?.calls || [], live || []), quota.clientModelConfigs);
         });
       let context = null;
       if (query.context === true) {
@@ -153,7 +159,7 @@ function createMonitor(dataDir = DEFAULT_DATA_DIR) {
           ? computeContextBreakdown(payload, { contextLimit: mainStats.waterline.contextLimit })
           : { breakdownAvailable: false, categories: CONTEXT_CATEGORIES };
       }
-      return { ...combineSessionWithSubagents(mainStats, children), context, live: Boolean(liveCalls.length) };
+      return { ...combineSessionWithSubagents(mainStats, children), orchestration, context, live: Boolean(liveCalls.length) };
     });
 
     const activeQuota = buildQuotaSnapshot({

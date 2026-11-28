@@ -3,6 +3,23 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const usage = require('../src/core/usage');
+const { combineSessionWithSubagents, computeSessionStats } = require('../src/core/session');
+
+test('history and session detail agree on mixed-model usage and estimated cost', () => {
+  const nowMs = new Date(2026, 10, 24, 12).getTime();
+  const calls = ['Gemini 4 Neon', 'Gemini 4 Carbon', 'Custom Unknown Model'].map((modelDisplayName) =>
+    ({ modelDisplayName, timestampMs: nowMs, inputTokens: 100000, outputTokens: 10000 }));
+  Object.assign(calls[1], { modelDisplayName: 'Orchestrator (Neon)', responseModel: 'gemini-4-carbon' });
+  const input = { conversationId: 'mixed', calls };
+  const report = usage.computeUsageReport([input], { nowMs });
+  const { totalCost } = combineSessionWithSubagents(computeSessionStats(input));
+  assert.deepEqual(report.byModel.map((model) => [model.modelKey, model.totalTokens]), [
+    ['gemini-4-neon', 110000], ['gemini-4-carbon', 110000], ['custom-unknown-model', 110000]
+  ]);
+  assert.ok(Math.abs(report.summary.estUsd - 0.75) < 1e-9);
+  assert.equal(totalCost.costUsd, report.summary.estUsd);
+  assert.equal(totalCost.unpricedTokens, report.summary.unpricedTokens);
+});
 
 test('usage: 7D/30D/ALL summary, heatmap levels, By Model, Top 3 rollup, and day selection', () => {
   const nowMs = Date.parse('2026-11-24T15:00:00+08:00');

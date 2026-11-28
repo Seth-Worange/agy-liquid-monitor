@@ -319,9 +319,38 @@ function parseChatModelMetadata(buf, includeContext) {
   return cm;
 }
 
+function parseOrchestratorConfig(input, includeDirect = false) {
+  try {
+    const fields = decodeFields(input);
+    const planner = fields.find((f) => f.field === 1 && f.wire === 0);
+    const pair = fields.find((f) => f.field === 60 && f.wire === 2);
+    const executor = pair && decodeFields(pair.value).find((f) => f.field === 1 && f.wire === 0);
+    const executorModel = Number(executor?.value) || null;
+    const plannerModel = Number(planner?.value) || null;
+    return executorModel || (includeDirect && plannerModel)
+      ? { planner: plannerModel, executor: executorModel } : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseUserInputRoute(input) {
+  // CortexStep.user_input (19) -> user_config (12) -> planner_config (1).
+  try {
+    let message = input;
+    for (const field of [19, 12, 1]) {
+      message = decodeFields(message).find((item) => item.field === field && item.wire === 2)?.value;
+      if (!message) return null;
+    }
+    return parseOrchestratorConfig(message, true);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Parse CortexStepGeneratorMetadata blob from gen_metadata.data.
- * Defaults to skipping heavy context payloads unless includeContext is true.
+ * Parse CortexStepGeneratorMetadata from gen_metadata.data.
+ * Skip heavy context payloads unless includeContext is true.
  */
 function parseGenMetadata(input, options = {}) {
   const buf = toUint8Array(input);
@@ -340,6 +369,8 @@ function parseGenMetadata(input, options = {}) {
       result.stepIndices.push(Number(tf.value));
     } else if (tf.field === 4 && tf.wire === 2) {
       result.executionId = decodeString(tf.value);
+    } else if (tf.field === 3 && tf.wire === 2) {
+      result.orchestrator = parseOrchestratorConfig(tf.value);
     } else if (tf.field === 1 && tf.wire === 2) {
       result.chatModel = parseChatModelMetadata(tf.value, includeContext);
     }
@@ -354,5 +385,6 @@ module.exports = {
   decodeDurationMs,
   parseRawSummary,
   parseStepMetadata,
+  parseUserInputRoute,
   parseGenMetadata
 };

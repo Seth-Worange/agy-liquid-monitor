@@ -94,7 +94,7 @@ function extractChatStartInfo(cm, raw) {
 
 function callStepIndex(raw) {
   const indices = raw.stepIndices ?? raw.step_indices;
-  return Array.isArray(indices)
+  return Array.isArray(indices) && indices.length
     ? indices.reduce((last, step) => Number.isInteger(step) ? Math.max(last ?? step, step) : last, null)
     : Number.isInteger(raw.stepIndex) ? raw.stepIndex : null;
 }
@@ -149,6 +149,56 @@ function isValidCall(call) {
   return Boolean(call && call.totalTokens > 0);
 }
 
+function mergeConversationCalls(stored, live) {
+  if (!stored.length) return live;
+  if (!live.length) return stored;
+
+  const responseId = (call) => call.chatModel?.usage?.responseId || call.chatModel?.usage?.response_id ||
+    call.responseId || call.response_id;
+  const stepKey = (call) => {
+    const execution = call.executionId || call.execution_id;
+    const step = callStepIndex(call);
+    return execution && step !== null ? JSON.stringify([execution, step]) : null;
+  };
+  function uniqueIndex(calls, keyFor) {
+    const index = new Map();
+    for (const call of calls) {
+      const key = keyFor(call);
+      if (key) index.set(key, index.has(key) ? null : call);
+    }
+    return index;
+  }
+  const storedById = uniqueIndex(stored, responseId);
+  const storedByStep = uniqueIndex(stored, stepKey);
+  const liveByStep = uniqueIndex(live, stepKey);
+  const merged = new Map(stored.map((call) => [call, call]));
+  const matched = new Set();
+  for (const call of live) {
+    const id = responseId(call);
+    const key = stepKey(call);
+    const sameStep = liveByStep.get(key) === call ? storedByStep.get(key) : null;
+    const previous = storedById.get(id) || (sameStep && (!id || !responseId(sameStep)) ? sameStep : null);
+    if (!previous || matched.has(previous)) {
+      merged.set(call, call);
+      continue;
+    }
+    matched.add(previous);
+    const newest = isValidCall(normalizeCall(call)) ? call : { ...call, chatModel: null };
+    merged.set(previous, {
+      ...previous, ...newest,
+      responseId: id || responseId(previous),
+      executionId: call.executionId || call.execution_id || previous.executionId,
+      stepIndices: call.stepIndices?.length ? call.stepIndices
+        : call.step_indices?.length ? call.step_indices : previous.stepIndices,
+      timestampMs: call.timestampMs ?? previous.timestampMs,
+      dateKey: call.dateKey || previous.dateKey,
+      orchestrator: call.orchestrator ?? previous.orchestrator
+    });
+  }
+  return [...merged.values()].sort((a, b) =>
+    (callStepIndex(a) ?? Infinity) - (callStepIndex(b) ?? Infinity));
+}
+
 function hasModelHint(modelInput) {
   if (!modelInput) return false;
   return Boolean(
@@ -156,7 +206,7 @@ function hasModelHint(modelInput) {
       modelInput.responseModel ||
       modelInput.modelEnum ||
       modelInput.model ||
-      Number.isFinite(Number(modelInput.modelNum))
+      Number(modelInput.modelNum) > 0
   );
 }
 
@@ -352,8 +402,7 @@ function combineSessionWithSubagents(mainStats, subagents = []) {
   let subagentTokens = 0;
   let combinedCostUsd = mainStats.cost?.priced ? mainStats.cost.costUsd : 0;
   let anyPriced = Boolean(mainStats.cost?.priced);
-  let hasUnpriced = !mainStats.cost?.priced && mainStats.totalTokens > 0;
-  let unpricedTokens = !mainStats.cost?.priced ? mainStats.totalTokens : 0;
+  let unpricedTokens = mainStats.cost?.unpricedTokens ?? (mainStats.cost?.priced ? 0 : mainStats.totalTokens || 0);
 
   const items = list.map((sub) => {
     const status = sub.normalizedStatus || normalizeSubagentStatus(sub);
@@ -365,10 +414,8 @@ function combineSessionWithSubagents(mainStats, subagents = []) {
     if (subCost.priced && subCost.costUsd !== null) {
       combinedCostUsd += subCost.costUsd;
       anyPriced = true;
-    } else if (tokens > 0) {
-      hasUnpriced = true;
-      unpricedTokens += tokens;
     }
+    unpricedTokens += subCost.unpricedTokens ?? (subCost.priced ? 0 : tokens);
 
     return {
       conversationId: sub.conversationId || '',
@@ -392,7 +439,7 @@ function combineSessionWithSubagents(mainStats, subagents = []) {
     totalCost: {
       priced: anyPriced,
       costUsd: anyPriced ? combinedCostUsd : null,
-      hasUnpriced,
+      hasUnpriced: unpricedTokens > 0,
       unpricedTokens,
       label: anyPriced ? null : 'Unpriced'
     },
@@ -410,6 +457,7 @@ module.exports = {
   parseDurationMsInput,
   toLocalDateKey,
   normalizeCall,
+  mergeConversationCalls,
   callStepIndex,
   isValidCall,
   pickFirstValidModel,

@@ -22,7 +22,7 @@ test('session: computeSessionStats skips 0-token calls and aggregates metrics ac
       },
       {
         timestampMs: Date.parse('2026-11-24T10:01:00+08:00'),
-        modelDisplayName: 'Gemini 4 Hydrogen (High)', // switched mid-session; still billed as Carbon!
+        modelDisplayName: 'Gemini 4 Hydrogen (High)',
         usage: { inputTokens: 20000, outputTokens: 1500, cacheReadTokens: 70000 },
         ttftMs: 4000,
         streamingMs: 15000
@@ -46,8 +46,8 @@ test('session: computeSessionStats skips 0-token calls and aggregates metrics ac
   assert.equal(stats.waterline.level, 'green');
   assert.equal(stats.primaryModel.modelKey, 'gemini-4-carbon');
   assert.equal(stats.cost.priced, true);
-  // Carbon Nov rate: (30000*2 + 100000*0.10 + 2000*10) / 1e6 = (60000 + 10000 + 20000)/1e6 = 0.09
-  assert.ok(Math.abs(stats.cost.costUsd - 0.09) < 1e-9);
+  // Carbon $0.028 + Hydrogen $0.0465.
+  assert.ok(Math.abs(stats.cost.costUsd - 0.0745) < 1e-9);
 });
 
 test('session: combineSessionWithSubagents aggregates running/done/error and mixed pricing', () => {

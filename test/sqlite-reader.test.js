@@ -62,6 +62,11 @@ function buildConversationFixture(dbPath, { wal = false, inputTokens = 1000 } = 
   db.prepare('INSERT INTO steps (idx, step_type, status, metadata, error_details) VALUES (?, ?, ?, ?, ?)').run(
     3, 15, 3, stepMeta, null
   );
+  if (!wal) {
+    db.exec('ALTER TABLE steps ADD COLUMN step_payload BLOB');
+    const config = Buffer.concat([fVarint(1, 1532), fBytes(60, fVarint(1, 1525))]);
+    db.prepare('UPDATE steps SET step_payload = ? WHERE idx = 0').run(fBytes(19, fBytes(12, fBytes(1, config))));
+  }
 
   const csmBuf = Buffer.concat([
     fVarint(1, 2),
@@ -159,10 +164,12 @@ test('sqlite-reader: WAL-safe read-only summaries, incremental cache, and contex
     assert.equal(mainDetail.calls[0].startStepIndex, 2);
     assert.equal(mainDetail.calls[0].checkpointIndex, 0);
     assert.equal(mainDetail.calls[0].truncationReason, 'TRUNCATION_REASON_MAX_TOKEN_LIMIT');
+    assert.deepEqual(mainDetail.routes, [{ stepIndex: 0, planner: 1532, executor: 1525 }]);
 
     const { createMonitor } = require('../src/main/monitor');
     const snapshot = await createMonitor(tmpDir).snapshot({ ids: ['../main-1', 'main-1'], context: true, period: '7D' });
     assert.equal(snapshot.panels[0].main.conversationId, 'main-1');
+    assert.deepEqual(snapshot.panels[0].orchestration.usage.executor, { calls: 1, tokens: 5250 });
     assert.equal(snapshot.panels[0].context.exactPromptTokens, 5000);
     assert.equal(snapshot.panels[0].subagentSummary.totalCount, 2);
     assert.equal(snapshot.panels[0].subagentSummary.runningCount, 1);

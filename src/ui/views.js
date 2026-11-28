@@ -140,7 +140,27 @@ function createMonitorViews(state) {
       ${unselected.map((item) => `<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('')}</select>` : ''}</div>`;
   }
 
-  function sessionDetail({ main, totalCost, totalTokens, subagentSummary }) {
+  function orchestrationDetail(data) {
+    if (!data) return '';
+    const labels = { planner: '规划', executor: '执行', unknown: '角色未区分' };
+    const scope = data.active ? '已选模式' : '会话记录';
+    const showModel = (value) => value ? modelName(value) : '模型未记录';
+    const rows = (usage, roles) => ['planner', 'executor', 'unknown']
+      .filter((role) => role !== 'unknown' || usage.unknown.calls > 0).map((role) => {
+        const item = usage[role];
+        return `<div class="row"><div><strong>${labels[role]}</strong>${roles && role !== 'unknown'
+          ? `<div class="meta">${showModel(roles[role])}</div>` : ''}</div><span class="line-value">${tokens(item.tokens)} Token · ${item.calls} 次</span></div>`;
+      }).join('');
+    const latest = data.latest;
+    return `<section class="orchestration"><div class="section-head"><h3>Orchestrator</h3><span class="meta">${scope}</span></div>
+      ${latest ? `<h3 class="small-metrics">最近一轮编排</h3><div class="lines">${rows(latest.usage, latest.roles)}</div>
+      <h3 class="small-metrics">模型调用顺序</h3><ol class="orchestration-timeline">${latest.timeline.map((item) =>
+        `<li><span>${labels[item.role]} · ${showModel(item.model)}</span><span class="meta">${item.calls} 次</span></li>`).join('')}</ol>
+      ${data.runs > 1 ? `<h3 class="small-metrics">本会话累计 · ${data.runs} 轮编排</h3><div class="lines">${rows(data.usage)}</div>` : ''}`
+      : '<p class="note small-metrics">已选择编排模式，等待 Antigravity 记录规划与执行调用。</p>'}</section>`;
+  }
+
+  function sessionDetail({ main, totalCost, totalTokens, subagentSummary, orchestration }) {
     const split = [
       ['缓存读取', main.cacheReadTokens, 'violet'], ['缓存写入', main.cacheWriteTokens, 'violet'],
       ['输入', main.inputTokens, 'cyan'], ['输出', main.outputTokens, 'blue']
@@ -154,7 +174,8 @@ function createMonitorViews(state) {
       ${metric('模型耗时', duration(main.modelTimeMs))}
       </div><div><div class="section-head"><h3>主会话 Token 构成</h3><span class="meta">缓存命中 ${percent(main.cacheHitRate)}</span></div>
       <div class="lines">${split.map(([label, value, color]) => line(label, tokens(value), value / main.totalTokens, color)).join('')}</div></div>
-      </div><p class="note small-metrics">${subagentSummary.totalCount ? `总量包含 ${subagentSummary.totalCount} 个子代理。 ` : ''}费用按内置公开 API 单价估算。</p>`;
+      </div><p class="note small-metrics">${subagentSummary.totalCount ? `总量包含 ${subagentSummary.totalCount} 个子代理。 ` : ''}费用按内置公开 API 单价估算。</p>
+      ${orchestrationDetail(orchestration)}`;
   }
 
   function contextDetail(panel) {

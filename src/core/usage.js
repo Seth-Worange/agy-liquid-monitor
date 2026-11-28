@@ -1,6 +1,6 @@
 'use strict';
 
-const { resolveModelIdentity, calculateCallCost } = require('./pricing');
+const { resolveModelIdentity, resolveCallModel, calculateCallCost } = require('./pricing');
 const { normalizeCall, isValidCall, pickFirstValidModel, toLocalDateKey } = require('./session');
 
 function parseLocalDateKey(dateKey) {
@@ -116,13 +116,14 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
   const rootMap = new Map();
 
   for (const sess of normalizedSessions) {
-    const model = resolveModelIdentity(sess.primaryModel);
+    const primaryModel = resolveModelIdentity(sess.primaryModel);
     let sessInSelection = false;
 
     for (const call of sess.calls) {
       const dk = call.dateKey;
       if (!dk) continue;
 
+      const model = resolveCallModel(call, primaryModel);
       const callCost = calculateCallCost(call, model, { dateKey: dk });
       const callTimeMs = (call.ttftMs || 0) + (call.streamingMs || 0);
 
@@ -222,12 +223,12 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
       }
       if (!sess.isChild) {
         rootEntry.title = sess.title;
-        rootEntry.primaryModel = model;
+        rootEntry.primaryModel = primaryModel;
         rootEntry.mainTokens += call.totalTokens;
       } else {
         rootEntry.subagentTokens += call.totalTokens;
         rootEntry.childIds.add(sess.conversationId);
-        if (!rootEntry.primaryModel) rootEntry.primaryModel = model;
+        if (!rootEntry.primaryModel) rootEntry.primaryModel = primaryModel;
       }
       rootEntry.totalTokens += call.totalTokens;
       rootEntry.modelTimeMs += callTimeMs;
@@ -244,7 +245,7 @@ function computeUsageReport(sessions = [], { period = '7D', nowMs = Date.now(), 
     if (!sess.isChild && rootMap.has(sess.rootConversationId)) {
       const r = rootMap.get(sess.rootConversationId);
       if (!r.title || r.title === r.conversationId.slice(0, 8)) r.title = sess.title;
-      r.primaryModel = model;
+      r.primaryModel = primaryModel;
     } else if (sessInSelection && rootMap.has(sess.rootConversationId) && !rootMap.get(sess.rootConversationId).title) {
       const mainMeta = normalizedSessions.find((s) => s.conversationId === sess.rootConversationId);
       if (mainMeta) {
